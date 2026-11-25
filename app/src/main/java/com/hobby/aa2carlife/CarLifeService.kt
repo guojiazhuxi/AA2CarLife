@@ -103,8 +103,6 @@ class CarLifeService : Service() {
     /** 每次会话只检查一次实际码流分辨率。 */
     private var resolutionCheckScheduled = false
 
-    /** 原始 CarLife 码流的 SPS/PPS（旋转预览解码器重建时用）。 */
-    private var lastRawCodecConfig: ByteArray? = null
 
     /** 向 CarLife 引擎申请的编码分辨率（M4 自适应：车机 AA 配置选 1920x1080 时就改成它）。 */
     @Volatile
@@ -507,7 +505,6 @@ class CarLifeService : Service() {
 
     private fun startSessionInternal() {
         resolutionCheckScheduled = false
-        lastRawCodecConfig = null
         // 没有 Surface 也能启动（本地预览可以后补），关键是不能因为界面不在就拒绝启动
         logAudioVolume()
         acquireWakeLock()
@@ -546,7 +543,6 @@ class CarLifeService : Service() {
                 val tx = transcode
                 if (tx != null) {
                     // 预览用原始 CarLife 帧（1412x654），这样预览不会被转码画布的黑边二次 letterbox。
-                    AaAnnexB.extractCodecConfig(frame)?.let { lastRawCodecConfig = it }
                     decoder?.submit(frame, ptsUs)
                     // AA 侧仍走补边转码：原始帧→画进安全区→重编码后由 handleTranscodedFrame 出去。
                     tx.submit(frame)
@@ -573,16 +569,6 @@ class CarLifeService : Service() {
                 RingLog.add("M1: CarLife 连接失败——请确认荣耀车联停在「正在连接」界面")
             }
         }, "carlife-session").apply { isDaemon = true }.start()
-    }
-
-    /** 运行时切换预览旋转：重建预览解码器，让 KEY_ROTATION 和 SurfaceView 比例重新对齐。 */
-    fun setPreviewRotation(enabled: Boolean) {
-        if (rotate90 == enabled) return
-        rotate90 = enabled
-        val s = surface ?: return
-        decoder?.release()
-        decoder = CarLifeVideoDecoder(s, enabled, lastRawCodecConfig)
-        RingLog.add("VIDEO: 预览旋转 " + (if (enabled) "开启" else "关闭") + "（已重建预览解码器）")
     }
 
     /** 会话稳定后对比 CarLife 实际码流尺寸与车机安全区；不一致提示重连一次。 */

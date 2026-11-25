@@ -134,7 +134,6 @@ class MainActivity : Activity() {
     private lateinit var chkMoveIndex: CheckBox
     private lateinit var chkCptclPipeline: CheckBox
     private lateinit var chkNewTouch: CheckBox
-    private lateinit var chkRotate90: CheckBox
     private var aaServer: AaHeadUnitServer? = null
 
     /** USB 车机已接入、但还没启动 CarLife 会话（等 Service 绑定后自动启动）。 */
@@ -197,7 +196,7 @@ class MainActivity : Activity() {
             service = local.service()
             surfaceView.setVideoSize(service?.previewWidth ?: 1412, service?.previewHeight ?: 654)
             service?.onResolutionMismatch = { msg -> showReconnectHint(msg) }
-            service?.rotate90 = chkRotate90.isChecked
+            service?.rotate90 = false
             // M3：把 CarLife 视频/音频转给 AA 手机端（只在台架连接时有用）
             service?.aaVideoSink = { frame -> aaServer?.sendVideoFrame(frame) }
             service?.aaAudioSink = { data, length -> aaServer?.sendAudioPcm(data, length) }
@@ -231,7 +230,6 @@ class MainActivity : Activity() {
         chkMoveIndex = findViewById(R.id.chk_move_index)
         chkCptclPipeline = findViewById(R.id.chk_cptcl_pipeline)
         chkNewTouch = findViewById(R.id.chk_new_touch)
-        chkRotate90 = findViewById(R.id.chk_rotate90)
         chkTapSingleClick = findViewById(R.id.chk_tap_single_click)
         btnMainConnect = findViewById(R.id.btn_main_connect)
         btnAdvancedToggle = findViewById(R.id.btn_advanced_toggle)
@@ -376,18 +374,9 @@ class MainActivity : Activity() {
             RingLog.add("TOUCH: 新触摸模式（0x68001 动作透传）${if (checked) "开启" else "关闭"}")
         }
         cptclPipeline = chkCptclPipeline.isChecked
-        // 预览固定横屏（实际 2.16:1），启动时强制不旋转；复选框只影响本次会话
-        val previewPrefs = getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
-        previewPrefs.edit().putBoolean("preview_rotate90", false).apply()
-        chkRotate90.isChecked = false
+        // 预览固定横屏（实际 2.16:1）；本机硬解不支持 KEY_ROTATION，旋转开关已移除
         surfaceView.rotate90 = false
         service?.rotate90 = false
-        chkRotate90.setOnCheckedChangeListener { _, checked ->
-            previewPrefs.edit().putBoolean("preview_rotate90", checked).apply()
-            surfaceView.rotate90 = checked
-            service?.setPreviewRotation(checked)
-            RingLog.add("VIDEO: 显示旋转 90° ${if (checked) "开启" else "关闭"}（已重建预览解码器，立即生效）")
-        }
         tapSendSingleClick = chkTapSingleClick.isChecked
         chkTapSingleClick.setOnCheckedChangeListener { _, checked ->
             tapSendSingleClick = checked
@@ -575,7 +564,7 @@ class MainActivity : Activity() {
         }
         requestNotificationPermission()
         ensureBatteryOptimizationExempt()
-        svc.rotate90 = chkRotate90.isChecked
+        svc.rotate90 = false
         setStatus(getString(R.string.status_connecting))
         svc.startSession()
         aaServer?.resumeVideoForCarLifeIfPaused()
@@ -598,7 +587,7 @@ class MainActivity : Activity() {
         }
         requestNotificationPermission()
         ensureBatteryOptimizationExempt()
-        svc.rotate90 = chkRotate90.isChecked
+        svc.rotate90 = false
         setStatus(getString(R.string.status_connecting))
         svc.startSession()
         aaServer?.resumeVideoForCarLifeIfPaused()
