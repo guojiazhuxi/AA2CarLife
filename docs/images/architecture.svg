@@ -24,9 +24,7 @@
   <text x="60" y="68" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="38" font-weight="700" fill="#0F172A">AA2CarLife 总体架构</text>
   <text x="62" y="104" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="17" fill="#64748B">Android Auto ⇄ 百度 CarLife 协议桥接 · 荣耀手机 + 奥迪 MIB3</text>
 
-  <rect x="1160" y="48" width="382" height="46" rx="23" fill="#FFFFFF" stroke="#DCE3EE"/>
-  <circle cx="1185" cy="71" r="6" fill="#16A34A"/>
-  <text x="1200" y="77" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="14" font-weight="600" fill="#334155">音频 ~60% · 仅有线 AA</text>
+
 
   <!-- Car -->
   <rect x="560" y="132" width="480" height="96" rx="18" fill="#0F172A" filter="url(#shadow)"/>
