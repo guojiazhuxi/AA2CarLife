@@ -26,7 +26,7 @@
 
   <rect x="1160" y="48" width="382" height="46" rx="23" fill="#FFFFFF" stroke="#DCE3EE"/>
   <circle cx="1185" cy="71" r="6" fill="#16A34A"/>
-  <text x="1200" y="77" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="14" font-weight="600" fill="#334155">视频已打通 · 音频 ~60% · 仅有线 AA</text>
+  <text x="1200" y="77" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="14" font-weight="600" fill="#334155">音频 ~60% · 仅有线 AA</text>
 
   <!-- Car -->
   <rect x="560" y="132" width="480" height="96" rx="18" fill="#0F172A" filter="url(#shadow)"/>
