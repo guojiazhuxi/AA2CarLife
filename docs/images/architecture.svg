@@ -27,7 +27,7 @@
 
 
   <!-- Car -->
-  <rect x="100" y="132" width="420" height="96" rx="18" fill="#0F172A" filter="url(#shadow)"/>
+  <rect x="100" y="132" width="480" height="96" rx="18" fill="#0F172A" filter="url(#shadow)"/>
   <rect x="100" y="132" width="8" height="96" rx="4" fill="#38BDF8"/>
   <text x="130" y="170" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">奥迪 MIB3 车机</text>
   <text x="130" y="199" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="14" fill="#CBD5E1">AA Head Unit · 画面显示 + 触摸输入</text>
@@ -111,12 +111,12 @@
 
   <!-- Engine -->
   <path d="M 1280 764 L 1280 864" stroke="#EA580C" stroke-width="3" marker-start="url(#arrowOrange)" marker-end="url(#arrowOrange)"/>
-  <rect x="1150" y="800" width="260" height="26" rx="13" fill="#FFEDD5"/>
-  <text x="1280" y="818" text-anchor="middle" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="12" fill="#9A3412">TCP localhost</text>
-  <rect x="1060" y="874" width="440" height="94" rx="18" fill="#FFF7ED" stroke="#FED7AA" filter="url(#shadow)"/>
-  <rect x="1060" y="874" width="8" height="94" rx="4" fill="#EA580C"/>
-  <text x="1090" y="908" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="20" font-weight="700" fill="#7C2D12">本机 CarLife 引擎</text>
-  <text x="1090" y="935" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="13" fill="#9A3412">荣耀车联 / CarLife+ · 127.0.0.1</text>
+  <rect x="1300" y="800" width="200" height="26" rx="13" fill="#FFEDD5"/>
+  <text x="1400" y="818" text-anchor="middle" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="12" fill="#9A3412">TCP localhost</text>
+  <rect x="1020" y="874" width="480" height="94" rx="18" fill="#FFF7ED" stroke="#FED7AA" filter="url(#shadow)"/>
+  <rect x="1020" y="874" width="8" height="94" rx="4" fill="#EA580C"/>
+  <text x="1050" y="908" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="20" font-weight="700" fill="#7C2D12">本机 CarLife 引擎</text>
+  <text x="1050" y="935" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="13" fill="#9A3412">荣耀车联 / CarLife+ · 127.0.0.1</text>
   <text x="1480" y="935" text-anchor="end" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="12" fill="#C2410C">协议 3.0</text>
 
   <text x="60" y="1020" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="12" fill="#94A3B8">数据流：车机 AA → App 桥接 → 本机 CarLife 引擎　|　蓝色：AA 接入　绿色：桥接与转码　橙色：CarLife 协议</text>
