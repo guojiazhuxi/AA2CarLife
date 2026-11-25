@@ -17,6 +17,14 @@
 （TLS、服务发现、视频/音频/输入/蓝牙通道）；同时作为 CarLife HU 客户端连接本机的
 CarLife 引擎（荣耀车联等），在两条协议之间转接画面、声音和触摸。
 
+## 为什么做 AA2CarLife
+
+目前已有不少 CarPlay → CarLife 的实现，但 CarPlay 对触摸事件的限制使其无法传递多指触控，
+地图双指缩放、双指手势等操作做不了。
+
+Android Auto 的输入协议支持多指触摸，因此 AA2CarLife 选择 AA 作为输入源，
+把多指事件映射到 CarLife 的复合/多指触摸消息，补上 CarPlay 方案做不到的双指操作。
+
 ```text
  车机 (AA head unit)
         │ USB accessory / AAP (TLS, 车机 O=CarService)
@@ -126,6 +134,7 @@ AARE 官方说明：https://github.com/prototux/AARE#aa-key-extraction
 
 - 视频流：已打通。
 - 音频：进度约 60%。
+- 目前只支持有线 AA（USB accessory）；无线 AA 尚未支持。
 - 仅在作者自己的设备上测试过（荣耀手机 + 奥迪 MIB3 车机）。
 
 ## 目录结构

@@ -10,6 +10,14 @@ AA2CarLife 是一个实验性的 Android Auto（AA）到百度 CarLife 协议桥
 
 当前用于个人设备上的互操作研究，不是可日常驾驶使用的产品。
 
+### 为什么做 AA2CarLife
+
+目前已有不少 CarPlay → CarLife 的实现，但 CarPlay 对触摸事件的限制使其无法传递多指触控，
+地图双指缩放、双指手势等操作做不了。
+
+Android Auto 的输入协议支持多指触摸，因此 AA2CarLife 选择 AA 作为输入源，
+把多指事件映射到 CarLife 的复合/多指触摸消息，补上 CarPlay 方案做不到的双指操作。
+
 ## 2. 总体架构
 
 ```text
@@ -74,7 +82,7 @@ app/src/main/assets/aap/phone_key.pem
 它从 Android Auto APK/APKM 中离线提取 `carservice_cert.pem`、`carservice_key.pem`、`gal_ca.pem`；
 AARE 也可从 [iscle/android-auto-certificates](https://github.com/iscle/android-auto-certificates)
 下载最新提取结果。叶证书到期后车机可能返回 `CERT_EXPIRED` / status -24，需要更新。
-无线 AA 由 aap/ 的 WPP/Wi-Fi 路径支持，当前主要在 USB 台架验证。
+目前只支持有线 AA（USB accessory）；无线 AA 尚未支持。
 
 ### 4.2 服务发现
 
@@ -273,6 +281,7 @@ adb shell run-as com.hobby.aa2carlife cat files/aa2cl.log
 
 - 视频流：已打通。
 - 音频：进度约 60%。
+- 目前只支持有线 AA（USB accessory）；无线 AA 尚未支持。
 - 仅在作者自己的设备上测试过（荣耀手机 + 奥迪 MIB3 车机）。
 
 ## 14. 许可与来源
