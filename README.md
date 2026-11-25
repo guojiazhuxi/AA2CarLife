@@ -25,27 +25,9 @@ CarLife 引擎（荣耀车联等），在两条协议之间转接画面、声音
 Android Auto 的输入协议支持多指触摸，因此 AA2CarLife 选择 AA 作为输入源，
 把多指事件映射到 CarLife 的复合/多指触摸消息，补上 CarPlay 方案做不到的双指操作。
 
-```text
- 车机 (AA head unit)
-        │ USB accessory / AAP (TLS, 车机 O=CarService)
-        ▼
- ┌──────────────────────────────────────────┐
- │ AA2CarLife (本 App)                      │
- │  AaHeadUnitServer                        │
- │   视频/音频/输入/蓝牙通道                  │
- │   aap/ (vendored AARE, GPL-3.0)          │
- │                                          │
- │  CarLifeService                          │
- │   CarLifeHuClient → TCP → 127.0.0.1:7240 │
- │   TranscodePipeline                      │
- │   1412×654 安全区 → 1920×1080 AA 画布     │
- │   CarLifeAudio（本地播放，可选）           │
- └──────────────────────────────────────────┘
-        ▲
-        │ 荣耀车联 / CarLife+ 引擎
-        ▼
-      手机本地
-```
+![AA2CarLife 总体架构](docs/images/architecture.png)
+
+> 矢量版：`docs/images/architecture.svg`。数据流为车机 AA → App 桥接 → 本机 CarLife 引擎。
 
 ## 功能概览
 

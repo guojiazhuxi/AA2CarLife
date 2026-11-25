@@ -20,23 +20,9 @@ Android Auto 的输入协议支持多指触摸，因此 AA2CarLife 选择 AA 作
 
 ## 2. 总体架构
 
-```text
-车机 (AA head unit)
-  │ USB accessory / AAP (TLS + 服务发现)
-  ▼
-AA2CarLife (Android App)
-  ├─ AaHeadUnitServer
-  │   ├─ VideoChannel     车机视频配置/编码画布
-  │   ├─ AudioChannel     媒体/导航音频通道
-  │   ├─ InputChannel     车机触摸/按键
-  │   ├─ BluetoothChannel 蓝牙身份上报
-  │   └─ 其他 AA 服务（传感器/状态/通知）
-  └─ CarLifeService
-      ├─ CarLifeHuClient → TCP 127.0.0.1:7240
-      ├─ CarLifeVideoDecoder  本地预览（可选）
-      ├─ TranscodePipeline    1412×654 → 1920×1080
-      └─ CarLifeAudio         本地播放（可选）
-```
+![AA2CarLife 总体架构](images/architecture.png)
+
+矢量版：`images/architecture.svg`。数据流：车机 AA → App 桥接 → 本机 CarLife 引擎。
 
 核心：AA 侧像一台车机，CarLife 侧像一台 CarLife HU；中间的视频转码和触摸映射由 App 完成。
 
