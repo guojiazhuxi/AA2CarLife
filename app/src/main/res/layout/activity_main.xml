@@ -12,22 +12,34 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- 顶部状态 -->
+        <!-- 顶部：软件名 + 状态；整体下移 -->
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="80dp" />
+
         <TextView
             android:id="@+id/status_text"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#22000000"
-            android:padding="12dp"
-            android:text="@string/status_idle"
-            android:textSize="18sp"
+            android:gravity="center"
+            android:text="AA2CarLife"
+            android:textSize="28sp"
             android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/status_detail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingTop="4dp"
+            android:text="@string/status_idle"
+            android:textSize="14sp" />
 
         <Button
             android:id="@+id/btn_main_connect"
             android:layout_width="match_parent"
             android:layout_height="56dp"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="20dp"
             android:text="@string/btn_connect_main"
             android:textSize="17sp"
             android:textStyle="bold" />
@@ -135,25 +147,6 @@
                     android:visibility="gone" />
             </LinearLayout>
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:paddingEnd="8dp"
-                    android:text="首次连接（无记忆时）"
-                    android:textSize="12sp" />
-
-                <Spinner
-                    android:id="@+id/spinner_first_config"
-                    android:layout_width="0dp"
-                    android:layout_height="40dp"
-                    android:layout_weight="1" />
-            </LinearLayout>
 
             <Button
                 android:id="@+id/btn_clear_display_profile"
@@ -176,6 +169,13 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingEnd="8dp"
+                    android:text="本机蓝牙地址"
+                    android:textSize="12sp" />
+
                 <EditText
                     android:id="@+id/edit_bt_mac"
                     android:layout_width="0dp"
@@ -195,27 +195,6 @@
                     android:textSize="12sp" />
             </LinearLayout>
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal">
-
-                <CheckBox
-                    android:id="@+id/chk_official_gesture"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:checked="true"
-                    android:text="@string/chk_official_gesture"
-                    android:textSize="12sp" />
-
-                <CheckBox
-                    android:id="@+id/chk_cptcl_pipeline"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:checked="true"
-                    android:text="@string/chk_cptcl_pipeline"
-                    android:textSize="12sp" />
-            </LinearLayout>
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -261,20 +240,34 @@
                 android:text="@string/hint_log_copy"
                 android:textSize="10sp" />
 
-            <ScrollView
-                android:id="@+id/log_scroll"
+            <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="150dp"
-                android:background="#11000000">
+                android:layout_height="150dp">
 
-                <TextView
-                    android:id="@+id/log_text"
+                <ScrollView
+                    android:id="@+id/log_scroll"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="monospace"
-                    android:padding="4dp"
-                    android:textSize="9sp" />
-            </ScrollView>
+                    android:layout_height="match_parent"
+                    android:background="#11000000">
+
+                    <TextView
+                        android:id="@+id/log_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:padding="4dp"
+                        android:textSize="9sp" />
+                </ScrollView>
+
+                <Button
+                    android:id="@+id/btn_log_bottom"
+                    android:layout_width="52dp"
+                    android:layout_height="36dp"
+                    android:layout_gravity="bottom|end"
+                    android:layout_margin="4dp"
+                    android:text="↓"
+                    android:textSize="16sp" />
+            </FrameLayout>
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

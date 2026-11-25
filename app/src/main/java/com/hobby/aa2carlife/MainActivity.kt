@@ -162,10 +162,9 @@ class MainActivity : Activity() {
     private lateinit var textureView: TextureView
     private var previewSurface: Surface? = null
     private lateinit var statusText: TextView
+    private lateinit var statusDetail: TextView
     private lateinit var logText: TextView
     private lateinit var logScroll: ScrollView
-    private lateinit var chkOfficialGesture: CheckBox
-    private lateinit var chkCptclPipeline: CheckBox
     private var aaServer: AaHeadUnitServer? = null
 
     /** USB 车机已接入、但还没启动 CarLife 会话（等 Service 绑定后自动启动）。 */
@@ -264,10 +263,9 @@ class MainActivity : Activity() {
         surfaceView = findViewById(R.id.surface_view)
         textureView = findViewById(R.id.preview_texture)
         statusText = findViewById(R.id.status_text)
+        statusDetail = findViewById(R.id.status_detail)
         logText = findViewById(R.id.log_text)
         logScroll = findViewById(R.id.log_scroll)
-        chkOfficialGesture = findViewById(R.id.chk_official_gesture)
-        chkCptclPipeline = findViewById(R.id.chk_cptcl_pipeline)
         btnMainConnect = findViewById(R.id.btn_main_connect)
         chkShowPreview = findViewById(R.id.chk_show_preview)
         previewFrame = findViewById(R.id.preview_frame)
@@ -292,17 +290,7 @@ class MainActivity : Activity() {
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
         }
 
-        // 首次连接偏好：没有记忆档案时按这个选择
         val appPrefs = getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
-        val spinnerFirstConfig = findViewById<Spinner>(R.id.spinner_first_config)
-        val firstConfigOptions = arrayOf("车机优先", "1080p", "720p", "480p")
-        spinnerFirstConfig.adapter = android.widget.ArrayAdapter(
-            this,
-            android.R.layout.simple_spinner_dropdown_item,
-            firstConfigOptions,
-        )
-        val savedFirstConfig = appPrefs.getInt("first_config_preference", 0).coerceIn(0, 3)
-        spinnerFirstConfig.setSelection(savedFirstConfig)
         // 预览开关：显示区域放在高级选项里，由用户决定开不开
         chkShowPreview.isChecked = appPrefs.getBoolean("show_preview", true)
         val hintPreview = findViewById<TextView>(R.id.hint_preview)
@@ -320,20 +308,15 @@ class MainActivity : Activity() {
             appPrefs.edit().putBoolean("local_audio_enabled", checked).apply()
             service?.setLocalAudioEnabled(checked)
         }
-        spinnerFirstConfig.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-                appPrefs.edit().putInt("first_config_preference", position).apply()
-                aaServer?.firstConfigPreference = position
-                RingLog.add("AA: 首次连接偏好改为 ${firstConfigOptions[position]}")
-            }
 
-            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
-        }
         // 日志允许长按选择复制（高级区另有"复制日志"按钮一键复制全部）
         // 日志不再设为可选中，避免抢焦点把外层 ScrollView 滚到日志；复制用按钮。
         logText.isFocusable = false
         logText.isFocusableInTouchMode = false
         logScroll.isFocusable = false
+        findViewById<Button>(R.id.btn_log_bottom).setOnClickListener {
+            logScroll.fullScroll(ScrollView.FOCUS_DOWN)
+        }
         findViewById<ScrollView>(R.id.root_scroll).post {
             findViewById<ScrollView>(R.id.root_scroll).scrollTo(0, 0)
         }
@@ -359,7 +342,6 @@ class MainActivity : Activity() {
         aaServer?.loadDisplayProfile = { loadDisplayProfile() }
         aaServer?.saveDisplayProfile = { profile -> saveDisplayProfile(profile) }
         aaServer?.onReconnectSuggested = { msg -> showReconnectHint(msg) }
-        aaServer?.firstConfigPreference = appPrefs.getInt("first_config_preference", 0).coerceIn(0, 3)
         // 后台生成一帧 1280x720 占位画面：AA 连上但 CarLife 还没出帧时，先发给车机避免黑屏超时
         if (aaServer?.hasPlaceholder() != true) {
             generatePlaceholder(aaServer)
@@ -443,19 +425,7 @@ class MainActivity : Activity() {
                 server.start()
             }
         }
-        chkCptclPipeline.setOnCheckedChangeListener { _, checked ->
-            cptclPipeline = checked
-            RingLog.add(
-                "TOUCH: 触摸管线切换为 " +
-                    if (checked) "CarPToCarL（DOWN/MOVE/UP 单点 + 复合双指）" else "官方 SDK（BEGIN/SINGLE_CLICK）",
-            )
-        }
-        officialGestureMode = chkOfficialGesture.isChecked
-        chkOfficialGesture.setOnCheckedChangeListener { _, checked ->
-            officialGestureMode = checked
-            RingLog.add("TOUCH: 官方手势 ${if (checked) "开启" else "关闭"}（点击=SINGLE_CLICK，拖动=DOWN/MOVE/UP）")
-        }
-        cptclPipeline = chkCptclPipeline.isChecked
+
         // 单击补发/MOVE索引/新触摸实验项已移除；单指走官方手势，双指回退 CPTCL。
 
         findViewById<Button>(R.id.btn_clear_display_profile).setOnClickListener {
@@ -614,14 +584,13 @@ class MainActivity : Activity() {
         if (Build.VERSION.SDK_INT >= 17 && isDestroyed) return
         logText.append(line)
         logText.append("\n")
-        logScroll.post { logScroll.fullScroll(ScrollView.FOCUS_DOWN) }
     }
 
     // ===== 一键连接：状态与按钮 =====
 
     private fun setStatus(text: String) {
         if (isFinishing) return
-        statusText.text = text
+        statusDetail.text = text
     }
 
     /** 主按钮点击：未运行就启动 CarLife 会话，运行中就断开。 */

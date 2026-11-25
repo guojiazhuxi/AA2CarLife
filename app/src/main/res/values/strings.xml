@@ -13,8 +13,6 @@
     <string name="chk_all_composite">模式B</string>
     <string name="chk_move_index">MOVE索引</string>
     <string name="chk_pinch_translate">捏合翻译</string>
-    <string name="chk_cptcl_pipeline">CPTCL管线</string>
-    <string name="chk_official_gesture">官方手势</string>
     <string name="chk_test_pattern">测试图（不连 CarLife）</string>
     <string name="hint_bt_mac">本机蓝牙地址（如 AA:BB:CC:DD:EE:FF）</string>
     <string name="btn_save_bt_mac">保存</string>
