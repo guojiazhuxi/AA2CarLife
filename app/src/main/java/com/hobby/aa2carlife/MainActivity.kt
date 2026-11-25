@@ -42,9 +42,9 @@ import com.hobby.aa2carlife.ui.RotateLayout
 private const val TRANSLATE_GAIN = 1.5f
 
 /** 点按/双击判定阈值（坐标是 1280×720 目标域）。 */
-private const val TAP_MAX_MS = 350L
+private const val TAP_MAX_MS = 600L
 private const val DOUBLE_TAP_MS = 350L
-private const val TAP_MAX_DRIFT = 30
+private const val TAP_MAX_DRIFT = 60
 
 /** 捏合翻译时，第一击抬起与第二击按下的间隔（引擎靠这个间隔识别双击）。 */
 private const val TRANSLATE_TAP_GAP_MS = 100L
@@ -185,6 +185,9 @@ class MainActivity : Activity() {
     private val aaPointerX = android.util.SparseIntArray()
     private val aaPointerY = android.util.SparseIntArray()
     private var aaDualLogBudget = 20
+
+    /** 首次触摸时记录 View 与触摸目标的尺寸，用于核对坐标映射。 */
+    private var touchMapLogged = false
 
     /** 复刻预览触摸的 CPTCL 状态机：第二指按下后 multiActive=true。 */
     private var aaMultiActive = false
@@ -914,6 +917,10 @@ class MainActivity : Activity() {
         val viewHeight = view.height.coerceAtLeast(1)
 
         val rotated = surfaceView.rotate90
+        if (!touchMapLogged) {
+            touchMapLogged = true
+            RingLog.add("TOUCHMAP: view=${viewWidth}x$viewHeight target=${targetWidth}x$targetHeight rotated=$rotated")
+        }
 
         fun x(index: Int): Int = if (!rotated) {
             (event.getX(index) * targetWidth / viewWidth).toInt().coerceIn(0, targetWidth - 1)
