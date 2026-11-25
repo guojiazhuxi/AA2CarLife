@@ -287,6 +287,27 @@ class MainActivity : Activity() {
 
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
         }
+
+        // 首次连接偏好：没有记忆档案时按这个选择
+        val appPrefs = getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
+        val spinnerFirstConfig = findViewById<Spinner>(R.id.spinner_first_config)
+        val firstConfigOptions = arrayOf("车机优先", "1080p", "720p", "480p")
+        spinnerFirstConfig.adapter = android.widget.ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            firstConfigOptions,
+        )
+        val savedFirstConfig = appPrefs.getInt("first_config_preference", 0).coerceIn(0, 3)
+        spinnerFirstConfig.setSelection(savedFirstConfig)
+        spinnerFirstConfig.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                appPrefs.edit().putInt("first_config_preference", position).apply()
+                aaServer?.firstConfigPreference = position
+                RingLog.add("AA: 首次连接偏好改为 ${firstConfigOptions[position]}")
+            }
+
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+        }
         // 日志允许长按选择复制（高级区另有"复制日志"按钮一键复制全部）
         logText.setTextIsSelectable(true)
         RingLog.listener = { line ->
@@ -311,6 +332,7 @@ class MainActivity : Activity() {
         aaServer?.loadDisplayProfile = { loadDisplayProfile() }
         aaServer?.saveDisplayProfile = { profile -> saveDisplayProfile(profile) }
         aaServer?.onReconnectSuggested = { msg -> showReconnectHint(msg) }
+        aaServer?.firstConfigPreference = appPrefs.getInt("first_config_preference", 0).coerceIn(0, 3)
         // 后台生成一帧 1280x720 占位画面：AA 连上但 CarLife 还没出帧时，先发给车机避免黑屏超时
         if (aaServer?.hasPlaceholder() != true) {
             generatePlaceholder(aaServer)
@@ -421,6 +443,11 @@ class MainActivity : Activity() {
             RingLog.add("VIDEO: 预览旋转90° " + (if (checked) "开启" else "关闭") + "（TextureView 变换，不重建解码器）")
         }
         // 单击补发/MOVE索引/新触摸实验项已移除；单指走官方手势，双指回退 CPTCL。
+
+        findViewById<Button>(R.id.btn_clear_display_profile).setOnClickListener {
+            clearDisplayProfiles()
+            Toast.makeText(this, "已清除分辨率记忆，下次连接重新学习", Toast.LENGTH_SHORT).show()
+        }
 
         // 本机蓝牙地址：车机蓝牙服务通道靠它确认"投屏的是哪台手机"
         val editBtMac = findViewById<EditText>(R.id.edit_bt_mac)
@@ -696,9 +723,21 @@ class MainActivity : Activity() {
         }
     }
 
-    /** 读取上次学习到的车机显示档案（AA 视频配置 + 安全区）。 */
+    /** 读取上次学习到的车机显示档案（按车机配置签名存，兼容旧版单份档案）。 */
     private fun loadDisplayProfile(): AaDisplayProfile? {
         val sp = getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
+        val key = aaServer?.displayProfileKey.orEmpty()
+        if (key.isNotEmpty()) {
+            val w = sp.getInt("profile_${key}_w", 0)
+            val h = sp.getInt("profile_${key}_h", 0)
+            val sw = sp.getInt("profile_${key}_sw", 0)
+            val sh = sp.getInt("profile_${key}_sh", 0)
+            val dpi = sp.getInt("profile_${key}_dpi", 0)
+            if (w in 320..4096 && h in 180..2304 && sw in 1..w && sh in 1..h) {
+                return AaDisplayProfile(w, h, sw, sh, dpi)
+            }
+        }
+        // 旧版单份档案兜底（升级前记住的车机）
         val w = sp.getInt("car_display_w", 0)
         val h = sp.getInt("car_display_h", 0)
         val sw = sp.getInt("car_safe_w", 0)
@@ -709,23 +748,49 @@ class MainActivity : Activity() {
         return AaDisplayProfile(w, h, sw, sh, dpi)
     }
 
-    /** 记住本次车机显示档案；值没变不重复写盘。 */
+    /** 记住本次车机显示档案：按车机 key 存一份，同时更新最后使用的全局安全区供提前 98311 用。 */
     private fun saveDisplayProfile(profile: AaDisplayProfile) {
         if (profile.width !in 320..4096 || profile.height !in 180..2304) return
         val sp = getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
-        val same = sp.getInt("car_display_w", 0) == profile.width &&
+        val key = aaServer?.displayProfileKey.orEmpty()
+        val samePerKey = key.isNotEmpty() &&
+            sp.getInt("profile_${key}_w", 0) == profile.width &&
+            sp.getInt("profile_${key}_h", 0) == profile.height &&
+            sp.getInt("profile_${key}_sw", 0) == profile.safeWidth &&
+            sp.getInt("profile_${key}_sh", 0) == profile.safeHeight
+        val sameLegacy = sp.getInt("car_display_w", 0) == profile.width &&
             sp.getInt("car_display_h", 0) == profile.height &&
             sp.getInt("car_safe_w", 0) == profile.safeWidth &&
             sp.getInt("car_safe_h", 0) == profile.safeHeight
-        if (same) return
-        sp.edit()
-            .putInt("car_display_w", profile.width)
-            .putInt("car_display_h", profile.height)
-            .putInt("car_safe_w", profile.safeWidth)
-            .putInt("car_safe_h", profile.safeHeight)
-            .putInt("car_display_dpi", profile.dpi)
-            .apply()
-        RingLog.add("AA: 已记住车机分辨率 ${profile.width}x${profile.height}（安全区 ${profile.safeWidth}x${profile.safeHeight}）")
+        if (samePerKey && sameLegacy) return
+        val e = sp.edit()
+        if (key.isNotEmpty()) {
+            e.putInt("profile_${key}_w", profile.width)
+            e.putInt("profile_${key}_h", profile.height)
+            e.putInt("profile_${key}_sw", profile.safeWidth)
+            e.putInt("profile_${key}_sh", profile.safeHeight)
+            e.putInt("profile_${key}_dpi", profile.dpi)
+        }
+        e.putInt("car_display_w", profile.width)
+        e.putInt("car_display_h", profile.height)
+        e.putInt("car_safe_w", profile.safeWidth)
+        e.putInt("car_safe_h", profile.safeHeight)
+        e.putInt("car_display_dpi", profile.dpi)
+        e.apply()
+        RingLog.add("AA: 已记住车机分辨率 ${profile.width}x${profile.height}（安全区 ${profile.safeWidth}x${profile.safeHeight}，档案=$key）")
+    }
+
+    /** 清除所有车机分辨率记忆；下次连接重新学习。 */
+    private fun clearDisplayProfiles() {
+        val sp = getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
+        val e = sp.edit()
+        sp.all.keys.forEach { k ->
+            if (k.startsWith("profile_") || k.startsWith("car_display_") || k.startsWith("car_safe_")) {
+                e.remove(k)
+            }
+        }
+        e.apply()
+        RingLog.add("AA: 已清除全部车机分辨率记忆")
     }
 
     /** 预览按实际码流比例重排（CarLife 1412x654 ≈ 2.16:1）。 */

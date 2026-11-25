@@ -949,6 +949,14 @@ class AaHeadUnitServer(
     @Volatile
     var onReconnectSuggested: ((String) -> Unit)? = null
 
+    /** 本次车机显示档案的 key（由视频配置列表+margin 签名得到，用于按车区分记忆）。 */
+    @Volatile
+    var displayProfileKey: String = ""
+
+    /** 首次连接没有记忆时的选择：0=车机 preferred，1=1080p，2=720p，3=480p。 */
+    @Volatile
+    var firstConfigPreference: Int = 0
+
     private fun videoListener(): VideoChannel.Listener = object : VideoChannel.Listener {
         override fun chooseConfiguration(configs: List<VideoConfiguration>, preferred: List<Int>): Int {
             configs.forEachIndexed { i, c ->
@@ -959,6 +967,12 @@ class AaHeadUnitServer(
                 )
             }
             val sizes = configs.map { configSize(it) }
+            // 用本次车机提供的配置列表 + margin + dpi 做一个稳定签名，按车区分记忆。
+            displayProfileKey = configs.joinToString("|") { c ->
+                val (cw, ch) = configSize(c)
+                "$cw" + "x" + ch + "-" + c.widthMargin + "x" + c.heightMargin + "-" + c.density
+            }.hashCode().toUInt().toString(16)
+            onLog("AA: 车机显示档案 key=$displayProfileKey（首连偏好=$firstConfigPreference）")
             carPreferredVideoSize = sizes.maxByOrNull { it.first.toLong() * it.second }
             // 1) CarLife 已在跑：选与当前码流一致的配置（否则码流/配置不符）
             // 2) CarLife 未跑：优先 1280x720 —— CarLife 的 1080p 实际编码为 1920x1088（多 8 行），
@@ -976,6 +990,16 @@ class AaHeadUnitServer(
                     onLog("AA: 命中已记住的车机分辨率 ${learned.width}x${learned.height}（安全区 ${learned.safeWidth}x${learned.safeHeight}）")
                 }
             }
+            // 首次连接（没有命中记忆）时按用户偏好选：车机 preferred / 1080p / 720p / 480p
+            if (index < 0) {
+                when (firstConfigPreference) {
+                    0 -> index = preferred.firstOrNull()?.takeIf { it in configs.indices } ?: -1
+                    1 -> index = configs.indices.firstOrNull { sizes[it] == (1920 to 1080) } ?: -1
+                    2 -> index = configs.indices.firstOrNull { sizes[it] == (1280 to 720) } ?: -1
+                    3 -> index = configs.indices.firstOrNull { sizes[it] == (800 to 480) } ?: -1
+                }
+            }
+            // 偏好档位不存在时回落
             if (index < 0) index = configs.indices.firstOrNull { sizes[it] == (1920 to 1080) } ?: -1
             if (index < 0) index = configs.indices.firstOrNull { sizes[it] == (1280 to 720) } ?: -1
             if (index < 0) index = configs.indices.firstOrNull { sizes[it] == (800 to 480) } ?: -1
