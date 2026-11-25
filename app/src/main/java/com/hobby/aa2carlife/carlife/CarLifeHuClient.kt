@@ -49,6 +49,7 @@ class CarLifeHuClient(
         private const val CONNECT_TIMEOUT_MS = 800
         private const val MAX_VIDEO_FRAME = 8 * 1024 * 1024
         private const val MAX_AUDIO_PACKET = 4 * 1024 * 1024
+        private const val MAX_CMD_PACKET = 16 * 1024
         private const val VERSION_WAIT_MS = 15_000L
         private const val FEATURE_ACK_WAIT_MS = 1_500L
     }
@@ -166,6 +167,10 @@ class CarLifeHuClient(
                 data.readFully(header)
                 val length = CarLifeProtocol.readU16(header, 0)
                 val serviceType = CarLifeProtocol.readU32(header, 4)
+                if (length > MAX_CMD_PACKET) {
+                    RingLog.add("CARLIFE: 控制包长度异常（$length），放弃控制通道")
+                    break
+                }
                 val payload = ByteArray(length)
                 if (length > 0) data.readFully(payload)
                 handleMessage(serviceType, payload)

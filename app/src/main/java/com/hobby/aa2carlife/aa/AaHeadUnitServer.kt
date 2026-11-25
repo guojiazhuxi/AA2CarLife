@@ -185,6 +185,9 @@ class AaHeadUnitServer(
     private var realVideoActive = false
 
     @Volatile
+    private var videoSendFailureLogged = false
+
+    @Volatile
     private var codecConfig: ByteArray? = null
 
     @Volatile
@@ -338,6 +341,7 @@ class AaHeadUnitServer(
 
     fun isRunning(): Boolean = running
 
+    @Synchronized
     fun start() {
         if (running) return
         val identity = try {
@@ -352,12 +356,18 @@ class AaHeadUnitServer(
             onLog("AA: 加载测试视频失败 - ${e.message}")
             null
         }
+        val ss = try {
+            ServerSocket(port, 4, InetAddress.getByName("127.0.0.1"))
+        } catch (e: Exception) {
+            onLog("AA: 台架服务启动失败 - ${e.message}")
+            return
+        }
+        serverSocket = ss
         running = true
+        videoSendFailureLogged = false
+        onLog("AA: 台架服务已启动：127.0.0.1:$port（PC 侧先 adb forward tcp:5277 tcp:5277）")
         thread(name = "aa-hu-accept", isDaemon = true) {
             try {
-                val ss = ServerSocket(port, 4, InetAddress.getByName("127.0.0.1"))
-                serverSocket = ss
-                onLog("AA: 台架服务已启动：127.0.0.1:$port（PC 侧先 adb forward tcp:5277 tcp:5277）")
                 while (running) {
                     val socket = try {
                         ss.accept()
@@ -373,6 +383,7 @@ class AaHeadUnitServer(
         }
     }
 
+    @Synchronized
     fun stop() {
         val caller = Thread.currentThread().stackTrace.getOrNull(3)
             ?.let { it.className.substringAfterLast('.') + "." + it.methodName + ":" + it.lineNumber } ?: "?"
@@ -413,14 +424,16 @@ class AaHeadUnitServer(
             if (c != null) {
                 waitingCodecConfig = false
                 sentCodecConfig = c
-                v.sendCodecConfig(c, 0, c.size)
+                runCatching { v.sendCodecConfig(c, 0, c.size) }
+                    .onFailure { onLog("AA: 发送 codec config 失败 - ${it.message}") }
                 onLog("AA: 收到 CarLife 首帧，已发送 codec config（${c.size}B）")
                 if (key) sendCachedKeyFrame(v, force = true)
             }
         } else if (cfg != null && !cfg.contentEquals(sentCodecConfig)) {
             // CarLife 重启/分辨率变化时 SPS/PPS 会变，必须给车机重发 codec config，否则解码器按旧尺寸解码
             sentCodecConfig = cfg
-            v.sendCodecConfig(cfg, 0, cfg.size)
+            runCatching { v.sendCodecConfig(cfg, 0, cfg.size) }
+                .onFailure { onLog("AA: 发送新 codec config 失败 - ${it.message}") }
             onLog("AA: 检测到新的 SPS/PPS（CarLife 分辨率可能变化），已重发 codec config")
             if (key) sendCachedKeyFrame(v, force = true)
         }
@@ -439,7 +452,13 @@ class AaHeadUnitServer(
 
         val buf = ByteArray(10 + frame.size)
         System.arraycopy(frame, 0, buf, 10, frame.size)
-        v.sendFrame(buf, 10, frame.size, (System.nanoTime() - streamStartNs) / 1000, key) {}
+        val sent = runCatching {
+            v.sendFrame(buf, 10, frame.size, (System.nanoTime() - streamStartNs) / 1000, key) {}
+        }.isSuccess
+        if (!sent && !videoSendFailureLogged) {
+            videoSendFailureLogged = true
+            onLog("AA: 视频帧发送失败（通道可能已停止/关闭）")
+        }
         framesSent++
         framesLogCount++
         if (key) keyFramesSent++

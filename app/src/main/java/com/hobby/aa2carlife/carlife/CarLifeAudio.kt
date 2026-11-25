@@ -195,12 +195,26 @@ class CarLifeAudio(
     }
 
     private fun write(track: AudioTrack, data: ByteArray, length: Int) {
+        var offset = 0
+        val deadline = android.os.SystemClock.elapsedRealtime() + WRITE_RETRY_TIMEOUT_MS
         try {
-            val written = track.write(data, 0, length)
-            if (written < 0) {
-                RingLog.add("AUDIO: AudioTrack.write 返回 $written")
-            } else if (written < length) {
+            while (offset < length) {
+                val written = track.write(data, offset, length - offset)
+                if (written < 0) {
+                    RingLog.add("AUDIO: AudioTrack.write 返回 $written")
+                    return
+                }
+                if (written == 0) {
+                    if (android.os.SystemClock.elapsedRealtime() >= deadline) break
+                    Thread.sleep(1)
+                    continue
+                }
+                offset += written
+                if (offset < length && android.os.SystemClock.elapsedRealtime() >= deadline) break
+            }
+            if (offset < length) {
                 mediaShortWrites++
+                RingLog.add("AUDIO: AudioTrack 写入超时，丢弃 ${length - offset}B")
             }
         } catch (e: Exception) {
             RingLog.add("AUDIO: 写 AudioTrack 失败 - ${e.message}")
@@ -304,5 +318,6 @@ class CarLifeAudio(
     companion object {
         private const val DEFAULT_RATE = 48_000
         private const val TTS_RATE = 16_000
+        private const val WRITE_RETRY_TIMEOUT_MS = 250L
     }
 }

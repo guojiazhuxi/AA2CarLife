@@ -13,7 +13,9 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.media.AudioManager
 import android.os.Binder
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
 import android.view.Surface
 import com.hobby.aa2carlife.aa.AaAnnexB
@@ -34,6 +36,8 @@ import com.hobby.aa2carlife.diag.RingLog
 class CarLifeService : Service() {
 
     companion object {
+        private const val WAKELOCK_TIMEOUT_MS = 10 * 60 * 1000L
+        private const val WAKELOCK_RENEW_MS = 8 * 60 * 1000L
         @Volatile
         var current: CarLifeService? = null
             private set
@@ -95,6 +99,10 @@ class CarLifeService : Service() {
 
     /** 会话期间持有部分唤醒锁：防止息屏/切后台时 CPU 被冻结导致心跳中断、引擎断开。 */
     private var wakeLock: PowerManager.WakeLock? = null
+    private val wakeLockHandler = Handler(Looper.getMainLooper())
+    private val wakeLockRenewRunnable = Runnable {
+        if (client?.isRunning() == true) acquireWakeLock()
+    }
 
     /** 防止并发重复启动会话（探测 7240 在后台线程，可能连点）。 */
     @Volatile
@@ -638,19 +646,24 @@ class CarLifeService : Service() {
         if (wasActive) RingLog.add("CARLIFE: 断开会话（$reason）")
     }
 
+    @Synchronized
     private fun acquireWakeLock() {
-        if (wakeLock?.isHeld == true) return
         runCatching {
+            wakeLock?.let { if (it.isHeld) it.release() }
             val pm = getSystemService(PowerManager::class.java)
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "aa2carlife:session").apply {
                 setReferenceCounted(false)
-                acquire()
+                acquire(WAKELOCK_TIMEOUT_MS)
             }
-            RingLog.add("POWER: 已获取部分唤醒锁（会话期间保持 CPU 运行）")
+            wakeLockHandler.removeCallbacks(wakeLockRenewRunnable)
+            wakeLockHandler.postDelayed(wakeLockRenewRunnable, WAKELOCK_RENEW_MS)
+            RingLog.add("POWER: 已获取部分唤醒锁（10 分钟超时，会话中自动续期）")
         }.onFailure { RingLog.add("POWER: 获取唤醒锁失败 - ${it.message}") }
     }
 
+    @Synchronized
     private fun releaseWakeLock() {
+        wakeLockHandler.removeCallbacks(wakeLockRenewRunnable)
         runCatching { wakeLock?.let { if (it.isHeld) it.release() } }
         wakeLock = null
     }
