@@ -31,7 +31,7 @@
             android:exported="true"
             android:label="@string/app_name"
             android:launchMode="singleTask"
-            android:screenOrientation="sensor"
+            android:screenOrientation="portrait"
             android:theme="@style/Theme.AA2CarLife"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
