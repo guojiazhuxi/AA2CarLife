@@ -162,10 +162,8 @@ class MainActivity : Activity() {
     private lateinit var statusText: TextView
     private lateinit var logText: TextView
     private lateinit var logScroll: ScrollView
-    private lateinit var chkMoveIndex: CheckBox
     private lateinit var chkOfficialGesture: CheckBox
     private lateinit var chkCptclPipeline: CheckBox
-    private lateinit var chkNewTouch: CheckBox
     private lateinit var chkRotate90: CheckBox
     private var aaServer: AaHeadUnitServer? = null
 
@@ -193,7 +191,6 @@ class MainActivity : Activity() {
     private var carlifeAlive = false
     private var carlifeFailed = false
     private var carlifePaused = false
-    private lateinit var chkTapSingleClick: CheckBox
 
     /** 一键连接主页控件 */
     private lateinit var btnMainConnect: Button
@@ -264,12 +261,9 @@ class MainActivity : Activity() {
         statusText = findViewById(R.id.status_text)
         logText = findViewById(R.id.log_text)
         logScroll = findViewById(R.id.log_scroll)
-        chkMoveIndex = findViewById(R.id.chk_move_index)
         chkOfficialGesture = findViewById(R.id.chk_official_gesture)
         chkCptclPipeline = findViewById(R.id.chk_cptcl_pipeline)
-        chkNewTouch = findViewById(R.id.chk_new_touch)
         chkRotate90 = findViewById(R.id.chk_rotate90)
-        chkTapSingleClick = findViewById(R.id.chk_tap_single_click)
         btnMainConnect = findViewById(R.id.btn_main_connect)
         btnAdvancedToggle = findViewById(R.id.btn_advanced_toggle)
         advancedPanel = findViewById(R.id.advanced_panel)
@@ -405,21 +399,12 @@ class MainActivity : Activity() {
                 server.start()
             }
         }
-        chkMoveIndex.setOnCheckedChangeListener { _, checked ->
-            moveWithIndex = checked
-            RingLog.add("TOUCH: 复合动作 MOVE ${if (checked) "带指针索引" else "不带索引"}")
-        }
         chkCptclPipeline.setOnCheckedChangeListener { _, checked ->
             cptclPipeline = checked
             RingLog.add(
                 "TOUCH: 触摸管线切换为 " +
                     if (checked) "CarPToCarL（DOWN/MOVE/UP 单点 + 复合双指）" else "官方 SDK（BEGIN/SINGLE_CLICK）",
             )
-        }
-        newTouchMode = chkNewTouch.isChecked
-        chkNewTouch.setOnCheckedChangeListener { _, checked ->
-            newTouchMode = checked
-            RingLog.add("TOUCH: 新触摸模式（0x68001 动作透传）${if (checked) "开启" else "关闭"}")
         }
         officialGestureMode = chkOfficialGesture.isChecked
         chkOfficialGesture.setOnCheckedChangeListener { _, checked ->
@@ -434,17 +419,7 @@ class MainActivity : Activity() {
             surfaceView.rotate90 = checked
             RingLog.add("VIDEO: 预览旋转90° " + (if (checked) "开启" else "关闭") + "（TextureView 变换，不重建解码器）")
         }
-        // 单击补发：CarLife 设置页等按钮依赖显式 0x68005 SINGLE_CLICK，默认开启；
-        // 地图卡片拖动失败与它无关（拖动不发 SINGLE_CLICK），不要再为地图关掉它。
-        val touchPrefs = getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
-        tapSendSingleClick = true
-        chkTapSingleClick.isChecked = true
-        touchPrefs.edit().putBoolean("tap_send_single_click", true).apply()
-        chkTapSingleClick.setOnCheckedChangeListener { _, checked ->
-            tapSendSingleClick = checked
-            touchPrefs.edit().putBoolean("tap_send_single_click", checked).apply()
-            RingLog.add("TOUCH: 点按补发 SINGLE_CLICK ${if (checked) "开启" else "关闭"}")
-        }
+        // 单击补发/MOVE索引/新触摸实验项已移除；单指走官方手势，双指回退 CPTCL。
 
         // 本机蓝牙地址：车机蓝牙服务通道靠它确认"投屏的是哪台手机"
         val editBtMac = findViewById<EditText>(R.id.edit_bt_mac)
