@@ -74,7 +74,7 @@ class CarLifeService : Service() {
 
     /** 是否在本机播放 CarLife 劫持声音（不影响转发给 AA）。 */
     @Volatile
-    private var localAudioEnabled = true
+    private var localAudioEnabled = false
 
     private var lastMediaRate = 0
     private var lastMediaChannels = 2

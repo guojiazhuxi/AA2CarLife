@@ -16,10 +16,12 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 import android.view.MotionEvent
+import android.graphics.Color
 import android.graphics.SurfaceTexture
 import android.view.Surface
 import android.view.TextureView
 import android.view.View
+import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.CheckBox
@@ -227,7 +229,7 @@ class MainActivity : Activity() {
             service?.onResolutionMismatch = { msg -> showReconnectHint(msg) }
             service?.setLocalAudioEnabled(
                 getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
-                    .getBoolean("local_audio_enabled", true),
+                    .getBoolean("local_audio_enabled_v2", false),
             )
             // M3：把 CarLife 视频/音频转给 AA 手机端（只在台架连接时有用）
             service?.aaVideoSink = { frame -> aaServer?.sendVideoFrame(frame) }
@@ -250,6 +252,19 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 白底状态栏配深色图标，避免时间/电量看不见
+        runCatching {
+            window.statusBarColor = Color.WHITE
+            if (Build.VERSION.SDK_INT >= 30) {
+                window.insetsController?.setSystemBarsAppearance(
+                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+                )
+            } else if (Build.VERSION.SDK_INT >= 23) {
+                window.decorView.systemUiVisibility =
+                    window.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+            }
+        }
         RingLog.init(applicationContext)
         // 投屏期间屏幕常亮（manifest 的 activity 没有 keepScreenOn 属性，必须代码加）
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -269,20 +284,20 @@ class MainActivity : Activity() {
 
         val appPrefs = getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
         // 预览开关：显示区域放在高级选项里，由用户决定开不开
-        chkShowPreview.isChecked = appPrefs.getBoolean("show_preview", true)
+        chkShowPreview.isChecked = appPrefs.getBoolean("show_preview_v2", false)
         val hintPreview = findViewById<TextView>(R.id.hint_preview)
         previewFrame.visibility = if (chkShowPreview.isChecked) View.VISIBLE else View.GONE
         hintPreview.visibility = previewFrame.visibility
         chkShowPreview.setOnCheckedChangeListener { _, checked ->
-            appPrefs.edit().putBoolean("show_preview", checked).apply()
+            appPrefs.edit().putBoolean("show_preview_v2", checked).apply()
             previewFrame.visibility = if (checked) View.VISIBLE else View.GONE
             hintPreview.visibility = previewFrame.visibility
             RingLog.add("UI: 画面预览 " + (if (checked) "开启" else "关闭"))
         }
         // 本机劫持声音开关
-        chkLocalAudio.isChecked = appPrefs.getBoolean("local_audio_enabled", true)
+        chkLocalAudio.isChecked = appPrefs.getBoolean("local_audio_enabled_v2", false)
         chkLocalAudio.setOnCheckedChangeListener { _, checked ->
-            appPrefs.edit().putBoolean("local_audio_enabled", checked).apply()
+            appPrefs.edit().putBoolean("local_audio_enabled_v2", checked).apply()
             service?.setLocalAudioEnabled(checked)
         }
 
