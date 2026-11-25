@@ -43,7 +43,7 @@ private const val TRANSLATE_GAIN = 1.5f
 
 /** 点按/双击判定阈值（坐标是 1280×720 目标域）。 */
 private const val TAP_MAX_MS = 600L
-private const val DOUBLE_TAP_MS = 2000L
+private const val DOUBLE_TAP_MS = 350L
 private const val TAP_MAX_DRIFT = 60
 
 /** 捏合翻译时，第一击抬起与第二击按下的间隔（引擎靠这个间隔识别双击）。 */
