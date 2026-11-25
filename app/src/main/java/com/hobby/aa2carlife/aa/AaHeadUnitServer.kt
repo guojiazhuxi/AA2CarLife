@@ -945,6 +945,10 @@ class AaHeadUnitServer(
     @Volatile
     var saveDisplayProfile: ((AaDisplayProfile) -> Unit)? = null
 
+    /** 分辨率首次学习/与记忆不一致时，提示用户重新连接一次。 */
+    @Volatile
+    var onReconnectSuggested: ((String) -> Unit)? = null
+
     private fun videoListener(): VideoChannel.Listener = object : VideoChannel.Listener {
         override fun chooseConfiguration(configs: List<VideoConfiguration>, preferred: List<Int>): Int {
             configs.forEachIndexed { i, c ->
@@ -995,6 +999,18 @@ class AaHeadUnitServer(
             val profile = AaDisplayProfile(w, h, safeW, safeH, chosen.density)
             runCatching { saveDisplayProfile?.invoke(profile) }
             onVideoConfigSelected?.invoke(w, h)
+            // 首次学习或与上次不一致：当前这一轮可能已经按旧尺寸建流，提示重新连接一次
+            if (current == null && !learnedHit) {
+                val msg = if (learned == null) {
+                    "已学习车机分辨率 " + w + "x" + h + "（安全区 " + safeW + "x" + safeH +
+                        "）。请拔插一次 USB 重新连接，让投屏按该分辨率建立。"
+                } else {
+                    "车机分辨率与上次不同，已更新为 " + w + "x" + h + "（安全区 " + safeW + "x" + safeH +
+                        "）。请拔插一次 USB 重新连接以生效。"
+                }
+                onLog("AA: " + msg)
+                runCatching { onReconnectSuggested?.invoke(msg) }
+            }
             return index
         }
 

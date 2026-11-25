@@ -41,6 +41,10 @@ class TranscodePipeline(
     private val canvasW = canvasWidth
     private val canvasH = canvasHeight
 
+    /** 当前源码流尺寸（用于检查 CarLife 实际码流是否与车机安全区一致）。 */
+    val sourceWidth: Int get() = srcW
+    val sourceHeight: Int get() = srcH
+
     /** 当前画布尺寸（CarLifeService 判断是否需要重建管线时用）。 */
     val canvasWidthPx: Int get() = canvasW
     val canvasHeightPx: Int get() = canvasH

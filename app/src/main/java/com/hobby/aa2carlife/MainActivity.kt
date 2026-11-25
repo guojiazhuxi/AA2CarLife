@@ -196,6 +196,7 @@ class MainActivity : Activity() {
             val local = binder as? CarLifeService.LocalBinder ?: return
             service = local.service()
             surfaceView.setVideoSize(service?.previewWidth ?: 1412, service?.previewHeight ?: 654)
+            service?.onResolutionMismatch = { msg -> showReconnectHint(msg) }
             service?.rotate90 = chkRotate90.isChecked
             // M3：把 CarLife 视频/音频转给 AA 手机端（只在台架连接时有用）
             service?.aaVideoSink = { frame -> aaServer?.sendVideoFrame(frame) }
@@ -277,6 +278,7 @@ class MainActivity : Activity() {
         // 车机分辨率记忆：首次学习，之后配置列表能对上就复用（同 CarPToCarL CarCanvasMemory）
         aaServer?.loadDisplayProfile = { loadDisplayProfile() }
         aaServer?.saveDisplayProfile = { profile -> saveDisplayProfile(profile) }
+        aaServer?.onReconnectSuggested = { msg -> showReconnectHint(msg) }
         // 后台生成一帧 1280x720 占位画面：AA 连上但 CarLife 还没出帧时，先发给车机避免黑屏超时
         if (aaServer?.hasPlaceholder() != true) {
             generatePlaceholder(aaServer)
@@ -656,6 +658,18 @@ class MainActivity : Activity() {
         btnMainConnect.text = getString(
             if (running) R.string.btn_disconnect_main else R.string.btn_connect_main,
         )
+    }
+
+    /** 分辨率不对/首次学习时的提示：Toast + 界面 hint + 日志，提示重新连接一次。 */
+    private fun showReconnectHint(msg: String) {
+        RingLog.add("UI: 分辨率提示 - " + msg)
+        runOnUiThread {
+            if (isFinishing) return@runOnUiThread
+            if (Build.VERSION.SDK_INT >= 17 && isDestroyed) return@runOnUiThread
+            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+            hintExtra.text = msg
+            hintExtra.visibility = View.VISIBLE
+        }
     }
 
     /** 读取上次学习到的车机显示档案（AA 视频配置 + 安全区）。 */

@@ -96,6 +96,13 @@ class CarLifeService : Service() {
     @Volatile
     var rotate90 = false
 
+    /** CarLife 实际码流与车机安全区不一致时提示（App 负责弹 UI）。 */
+    @Volatile
+    var onResolutionMismatch: ((String) -> Unit)? = null
+
+    /** 每次会话只检查一次实际码流分辨率。 */
+    private var resolutionCheckScheduled = false
+
     /** 向 CarLife 引擎申请的编码分辨率（M4 自适应：车机 AA 配置选 1920x1080 时就改成它）。 */
     @Volatile
     var videoWidth = 1920
@@ -181,6 +188,14 @@ class CarLifeService : Service() {
 
     /** 原始 CarLife 帧（直通模式）：缓存参数集/关键帧、喂预览解码器、交给 AA。 */
     private fun handleVideoFrame(frame: ByteArray, ptsUs: Long) {
+        if (!resolutionCheckScheduled) {
+            resolutionCheckScheduled = true
+            // 引擎可能在建流前降档（例如 1412x654 → 1280x720）；等它稳定几秒再对比。
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+                { checkResolutionSettled() },
+                4000L,
+            )
+        }
         val cfg = AaAnnexB.extractCodecConfig(frame)
         if (cfg != null) {
             lastCodecConfig = cfg
@@ -488,6 +503,7 @@ class CarLifeService : Service() {
     }
 
     private fun startSessionInternal() {
+        resolutionCheckScheduled = false
         // 没有 Surface 也能启动（本地预览可以后补），关键是不能因为界面不在就拒绝启动
         logAudioVolume()
         acquireWakeLock()
@@ -552,7 +568,24 @@ class CarLifeService : Service() {
         }, "carlife-session").apply { isDaemon = true }.start()
     }
 
+    /** 会话稳定后对比 CarLife 实际码流尺寸与车机安全区；不一致提示重连一次。 */
+    private fun checkResolutionSettled() {
+        if (client?.isRunning() != true) return
+        val safe = carSafeArea ?: return
+        if (safe.size < 2) return
+        val tx = transcode ?: return
+        val aw = tx.sourceWidth
+        val ah = tx.sourceHeight
+        if (aw <= 0 || ah <= 0) return
+        if (kotlin.math.abs(aw - safe[0]) <= 32 && kotlin.math.abs(ah - safe[1]) <= 32) return
+        val msg = "CarLife 实际码流 " + aw + "x" + ah + " 与车机安全区 " + safe[0] + "x" + safe[1] +
+            " 不一致，请重新连接一次（拔插 USB 或重开 CarLife）"
+        RingLog.add("CARLIFE: " + msg)
+        runCatching { onResolutionMismatch?.invoke(msg) }
+    }
+
     fun stopSession(reason: String = "用户主动断开") {
+        resolutionCheckScheduled = false
         if (client != null || decoder != null || audio != null) {
             RingLog.add("CARLIFE: 断开会话（$reason）")
         }
