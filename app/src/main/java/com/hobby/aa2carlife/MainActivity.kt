@@ -392,6 +392,12 @@ class MainActivity : Activity() {
         }
 
         surfaceView.setOnTouchListener { v, event ->
+            // 预览区自己处理滑动：按下时禁止外层 ScrollView 拦截，抬手/取消再恢复。
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> v.parent?.requestDisallowInterceptTouchEvent(true)
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                    v.parent?.requestDisallowInterceptTouchEvent(false)
+            }
             try {
                 handleTouch(v, event)
             } catch (e: Exception) {
