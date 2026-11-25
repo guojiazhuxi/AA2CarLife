@@ -21,7 +21,7 @@ jobs:
         run: |
           SDKMANAGER="${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" 'platforms;android-37'
+          "$SDKMANAGER" --channel=3 'platforms;android-37'
 
       - name: Build, test and lint
         run: |
