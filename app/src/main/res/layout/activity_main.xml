@@ -94,6 +94,7 @@
                 android:id="@+id/chk_show_preview"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:saveEnabled="false"
                 android:checked="false"
                 android:text="显示画面预览"
                 android:textSize="14sp" />
@@ -132,6 +133,7 @@
                 android:id="@+id/chk_local_audio"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:saveEnabled="false"
                 android:checked="false"
                 android:text="播放劫持声音（本机）"
                 android:textSize="14sp" />

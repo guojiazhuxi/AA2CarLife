@@ -196,6 +196,7 @@ class MainActivity : Activity() {
     private lateinit var previewFrame: FrameLayout
     private lateinit var chkLocalAudio: CheckBox
     private lateinit var hintExtra: TextView
+    private var firstUiStateApplied = false
 
     /** 0=自动 1=1280x720 2=1920x1080 3=800x480 */
     private var resolutionChoiceIndex = 0
@@ -227,10 +228,7 @@ class MainActivity : Activity() {
             service = local.service()
             surfaceView.setVideoSize(service?.previewWidth ?: 1412, service?.previewHeight ?: 654)
             service?.onResolutionMismatch = { msg -> showReconnectHint(msg) }
-            service?.setLocalAudioEnabled(
-                getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
-                    .getBoolean("local_audio_enabled_v2", false),
-            )
+            service?.setLocalAudioEnabled(chkLocalAudio.isChecked)
             // M3：把 CarLife 视频/音频转给 AA 手机端（只在台架连接时有用）
             service?.aaVideoSink = { frame -> aaServer?.sendVideoFrame(frame) }
             service?.aaAudioSink = { data, length -> aaServer?.sendAudioPcm(data, length) }
@@ -252,16 +250,14 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        // 系统恢复视图状态时可能把勾选恢复成旧值；每次回前台按偏好重新应用。
-        val sp = getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
-        val showPreview = sp.getBoolean("show_preview_v2", false)
-        chkShowPreview.isChecked = showPreview
-        val hintPreview = findViewById<TextView>(R.id.hint_preview)
-        previewFrame.visibility = if (showPreview) View.VISIBLE else View.GONE
-        hintPreview.visibility = previewFrame.visibility
-        val localAudio = sp.getBoolean("local_audio_enabled_v2", false)
-        chkLocalAudio.isChecked = localAudio
-        service?.setLocalAudioEnabled(localAudio)
+        if (!firstUiStateApplied) {
+            firstUiStateApplied = true
+            chkShowPreview.isChecked = false
+            findViewById<TextView>(R.id.hint_preview).visibility = View.GONE
+            previewFrame.visibility = View.GONE
+            chkLocalAudio.isChecked = false
+            service?.setLocalAudioEnabled(false)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -296,23 +292,30 @@ class MainActivity : Activity() {
         chkLocalAudio = findViewById(R.id.chk_local_audio)
         hintExtra = findViewById(R.id.hint_extra)
 
-        val appPrefs = getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
-        // 预览开关：显示区域放在高级选项里，由用户决定开不开
-        chkShowPreview.isChecked = appPrefs.getBoolean("show_preview_v2", false)
+        // 两个开关每次启动默认关闭；系统恢复勾选状态不改默认值。
+        chkShowPreview.isChecked = false
         val hintPreview = findViewById<TextView>(R.id.hint_preview)
-        previewFrame.visibility = if (chkShowPreview.isChecked) View.VISIBLE else View.GONE
-        hintPreview.visibility = previewFrame.visibility
+        previewFrame.visibility = View.GONE
+        hintPreview.visibility = View.GONE
         chkShowPreview.setOnCheckedChangeListener { _, checked ->
-            appPrefs.edit().putBoolean("show_preview_v2", checked).apply()
             previewFrame.visibility = if (checked) View.VISIBLE else View.GONE
             hintPreview.visibility = previewFrame.visibility
             RingLog.add("UI: 画面预览 " + (if (checked) "开启" else "关闭"))
         }
         // 本机劫持声音开关
-        chkLocalAudio.isChecked = appPrefs.getBoolean("local_audio_enabled_v2", false)
+        chkLocalAudio.isChecked = false
         chkLocalAudio.setOnCheckedChangeListener { _, checked ->
-            appPrefs.edit().putBoolean("local_audio_enabled_v2", checked).apply()
             service?.setLocalAudioEnabled(checked)
+        }
+        chkShowPreview.post {
+            if (!firstUiStateApplied) {
+                firstUiStateApplied = true
+                chkShowPreview.isChecked = false
+                previewFrame.visibility = View.GONE
+                hintPreview.visibility = View.GONE
+                chkLocalAudio.isChecked = false
+                service?.setLocalAudioEnabled(false)
+            }
         }
 
         // 日志允许长按选择复制（高级区另有"复制日志"按钮一键复制全部）
