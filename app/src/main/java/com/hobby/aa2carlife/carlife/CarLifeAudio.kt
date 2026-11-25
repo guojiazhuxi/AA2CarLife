@@ -169,14 +169,24 @@ class CarLifeAudio(
                 .setSampleRate(rate)
                 .setChannelMask(channelMask)
                 .build()
-            AudioTrack.Builder()
-                .setAudioAttributes(attributes)
-                .setAudioFormat(format)
-                .setBufferSizeInBytes(bufferSize)
-                .setTransferMode(AudioTrack.MODE_STREAM)
-                .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
-                .build()
-                .also {
+            fun build(useLowLatency: Boolean): AudioTrack {
+                val b = AudioTrack.Builder()
+                    .setAudioAttributes(attributes)
+                    .setAudioFormat(format)
+                    .setBufferSizeInBytes(bufferSize)
+                    .setTransferMode(AudioTrack.MODE_STREAM)
+                if (useLowLatency && android.os.Build.VERSION.SDK_INT >= 26) {
+                    b.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
+                }
+                return b.build()
+            }
+            val track = try {
+                build(true)
+            } catch (e: Exception) {
+                RingLog.add("AUDIO: 低延迟 AudioTrack 失败，回退普通模式 - ${e.message}")
+                build(false)
+            }
+            track.also {
                     val state = it.state
                     RingLog.add("AUDIO: AudioTrack 状态=$state 采样率=$rate 声道=$channels 低延迟缓冲=$bufferSize")
                     preferBuiltinSpeaker(it)
