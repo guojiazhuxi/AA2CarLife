@@ -138,6 +138,7 @@ class MainActivity : Activity() {
     private var officialWasScroll = false
     private var officialMultiFallback = false
     private var officialDownSent = false
+    private var officialDoubleCandidate = false
     private var officialDownX = 0
     private var officialDownY = 0
     private var officialLastX = 0
@@ -999,15 +1000,38 @@ class MainActivity : Activity() {
                     officialLastX = officialDownX
                     officialLastY = officialDownY
                     officialLastMoveAt = now
+                    // 第二下若在双击窗口内：立刻发 DOWN，不等移动阈值。
+                    // 否则目标 App 的双击窗口会在等 MOVE 的过程中过期。
+                    officialDoubleCandidate = officialLastTapAt > 0 &&
+                        now - officialLastTapAt <= DOUBLE_TAP_MS &&
+                        kotlin.math.abs(officialDownX - officialLastTapX) <= TAP_MAX_DRIFT &&
+                        kotlin.math.abs(officialDownY - officialLastTapY) <= TAP_MAX_DRIFT
                     svc.touchSingle(CarLifeProtocol.TOUCH_ACTION_BEGIN, officialDownX, officialDownY)
-                    RingLog.add("TOUCH: 官方手势 BEGIN (${officialDownX},${officialDownY})")
+                    if (officialDoubleCandidate) {
+                        svc.touchSingle(CarLifeProtocol.TOUCH_DOWN, officialDownX, officialDownY)
+                        officialDownSent = true
+                        RingLog.add("TOUCH: 官方手势 BEGIN (${officialDownX},${officialDownY}) 双击候选 DOWN 立即下发")
+                    } else {
+                        officialDownSent = false
+                        RingLog.add("TOUCH: 官方手势 BEGIN (${officialDownX},${officialDownY})")
+                    }
                     return true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val mx = x(0)
                     val my = y(0)
                     val total = kotlin.math.abs(mx - officialDownX) + kotlin.math.abs(my - officialDownY)
-                    if (!officialWasScroll && total >= MOVE_MIN_DRIFT) {
+                    if (officialDoubleCandidate && !officialWasScroll && total >= 4) {
+                        // 双击候选已经发过 DOWN，移动直接进入拖动，不再等 20px
+                        officialScrollStarted = true
+                        officialWasScroll = true
+                        svc.touchSingle(CarLifeProtocol.TOUCH_MOVE, mx, my)
+                        officialLastX = mx
+                        officialLastY = my
+                        officialLastMoveAt = now
+                        scheduleOfficialUp()
+                        RingLog.add("TOUCH: 官方手势 双击候选拖动 MOVE($mx,$my)")
+                    } else if (!officialWasScroll && total >= MOVE_MIN_DRIFT) {
                         // 官方 onScroll 第一次滚动补 DOWN（用按下点）
                         svc.touchSingle(CarLifeProtocol.TOUCH_DOWN, officialDownX, officialDownY)
                         officialDownSent = true
@@ -1044,13 +1068,12 @@ class MainActivity : Activity() {
                         officialDownSent = false
                         RingLog.add("TOUCH: 官方手势 拖动结束 UP(${officialLastX},${officialLastY})")
                     } else if (!officialWasScroll) {
-                        val isDouble = now - officialLastTapAt <= DOUBLE_TAP_MS &&
-                            kotlin.math.abs(officialDownX - officialLastTapX) <= TAP_MAX_DRIFT &&
-                            kotlin.math.abs(officialDownY - officialLastTapY) <= TAP_MAX_DRIFT
-                        if (isDouble) {
+                        if (officialDoubleCandidate) {
+                            // 候选按下时已经发过 DOWN，抬手先释放再补双击
+                            svc.touchSingle(CarLifeProtocol.TOUCH_UP, officialDownX, officialDownY)
                             svc.touchSingle(CarLifeProtocol.TOUCH_DOUBLE_CLICK, officialDownX, officialDownY)
                             officialLastTapAt = 0
-                            RingLog.add("TOUCH: 官方手势 DOUBLE_CLICK (${officialDownX},${officialDownY})")
+                            RingLog.add("TOUCH: 官方手势 双击候选 UP+DOUBLE_CLICK (${officialDownX},${officialDownY})")
                         } else {
                             svc.touchSingle(CarLifeProtocol.TOUCH_SINGLE_CLICK, officialDownX, officialDownY)
                             officialLastTapAt = now
