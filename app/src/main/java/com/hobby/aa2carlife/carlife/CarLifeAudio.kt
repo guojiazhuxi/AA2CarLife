@@ -32,6 +32,10 @@ class CarLifeAudio(
     private var ttsRate = TTS_RATE
     private var ttsChannels = 1
 
+    /** 创建后先不 play，等第一包 PCM 写进去再启动，避免启动 underrun/爆音。 */
+    private var mediaPlayPending = false
+    private var ttsPlayPending = false
+
     // 媒体音频统计（每 ~2 秒打一行，用于确认 PCM 是否在持续流动）
     private var mediaPackets = 0L
     private var mediaBytes = 0L
@@ -58,6 +62,7 @@ class CarLifeAudio(
             usage = AudioAttributes.USAGE_MEDIA,
             contentType = AudioAttributes.CONTENT_TYPE_MUSIC,
         )
+        mediaPlayPending = mediaTrack != null
         mediaPackets = 0
         mediaBytes = 0
         mediaShortWrites = 0
@@ -79,6 +84,11 @@ class CarLifeAudio(
         mediaPackets++
         mediaBytes += length
         write(track, data, length)
+        if (mediaPlayPending) {
+            mediaPlayPending = false
+            runCatching { track.play() }
+            RingLog.add("AUDIO: 媒体首包已写入，开始播放（避免启动爆音）")
+        }
         val now = android.os.SystemClock.uptimeMillis()
         if (lastMediaStatMs == 0L) lastMediaStatMs = now
         if (now - lastMediaStatMs >= 2000L) {
@@ -110,6 +120,7 @@ class CarLifeAudio(
             usage = AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE,
             contentType = AudioAttributes.CONTENT_TYPE_SPEECH,
         )
+        ttsPlayPending = ttsTrack != null
         RingLog.add("AUDIO: TTS 音频格式 ${rate}Hz ${ch}ch（已创建 AudioTrack）")
     }
 
@@ -125,6 +136,11 @@ class CarLifeAudio(
             RingLog.add("AUDIO: ✓ 收到导航播报音频首包（${length}B，${ttsRate}Hz ${ttsChannels}ch）")
         }
         write(track, data, length)
+        if (ttsPlayPending) {
+            ttsPlayPending = false
+            runCatching { track.play() }
+            RingLog.add("AUDIO: TTS 首包已写入，开始播放")
+        }
     }
 
     @Synchronized
@@ -190,7 +206,7 @@ class CarLifeAudio(
                     val state = it.state
                     RingLog.add("AUDIO: AudioTrack 状态=$state 采样率=$rate 声道=$channels 低延迟缓冲=$bufferSize")
                     preferBuiltinSpeaker(it)
-                    it.play()
+                    // 先不 play：等第一包 PCM 写入后再启动，避免启动 underrun/爆音。
                 }
         } catch (e: Exception) {
             RingLog.add("AUDIO: 创建 AudioTrack 失败 - ${e.message}")
@@ -229,6 +245,7 @@ class CarLifeAudio(
         runCatching { mediaTrack?.release() }
         mediaTrack = null
         mediaPcmLogged = false
+        mediaPlayPending = false
     }
 
     private fun releaseTtsTrack() {
@@ -236,6 +253,7 @@ class CarLifeAudio(
         runCatching { ttsTrack?.release() }
         ttsTrack = null
         ttsPcmLogged = false
+        ttsPlayPending = false
     }
 
     companion object {
