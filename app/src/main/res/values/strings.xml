@@ -1,32 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AA2CarLife</string>
-    <string name="btn_start">启动</string>
-    <string name="btn_stop">停止</string>
-    <string name="btn_clear">清空</string>
-    <string name="btn_copy_log">复制日志</string>
     <string name="status_idle">未启动</string>
     <string name="notif_channel">CarLife 桥接</string>
     <string name="notif_title">AA2CarLife 运行中</string>
     <string name="notif_text">正在连接本机 CarLife 引擎…</string>
-    <string name="chk_new_touch">新触摸</string>
-    <string name="chk_all_composite">模式B</string>
-    <string name="chk_move_index">MOVE索引</string>
-    <string name="chk_pinch_translate">捏合翻译</string>
     <string name="chk_test_pattern">测试图（不连 CarLife）</string>
     <string name="hint_bt_mac">本机蓝牙地址（如 AA:BB:CC:DD:EE:FF）</string>
     <string name="btn_save_bt_mac">保存</string>
-    <string name="btn_aa_bench">AA台架</string>
-    <string name="chk_tap_single_click">单击补发</string>
-    <string name="btn_selftest">自测捏合</string>
-    <string name="hint_log_copy">日志可用上方「复制日志」按钮复制后发给我</string>
     <string name="hint_video_landscape">画面按 CarLife 实际比例显示（不拉伸）</string>
 
     <!-- 一键连接界面（极简主页） -->
     <string name="btn_connect_main">连接 CarLife</string>
     <string name="btn_disconnect_main">断开连接</string>
-    <string name="btn_advanced">高级选项</string>
-    <string name="btn_advanced_hide">收起高级选项</string>
     <string name="status_connecting">正在启动 CarLife 会话…</string>
     <string name="status_waiting_car">CarLife 已连接，等待车机接入</string>
     <string name="status_car_attached">车机已接入，正在建立 AA 连接…</string>
@@ -36,6 +22,15 @@
     <string name="status_carlife_paused">CarLife 已断开（车机保持连接）；重新启动 CarLife 可继续投屏</string>
     <string name="status_engine_waiting">等待 CarLife 就绪：请在荣耀车联进入「CarLife → 无线连接 → 正在连接」，插车后会自动重试</string>
     <string name="hint_need_carlife">先把荣耀车联切到 CarLife → 无线连接 → 正在连接，再点上方按钮</string>
-    <string name="hint_usb_auto">车机 USB 接入后会自动投屏，无需再点任何按钮</string>
     <string name="hint_native_resolution">当前按 CarLife 已有分辨率 %1$dx%2$d 投屏（车机支持 %3$dx%4$d）。想要原生分辨率：断开连接 → 重新进荣耀车联「正在连接」→ 直接插线</string>
+    <string name="label_advanced">高级选项</string>
+    <string name="label_display">显示</string>
+    <string name="chk_show_preview">显示画面预览</string>
+    <string name="chk_local_audio">播放劫持声音（本机）</string>
+    <string name="label_vehicle">车机</string>
+    <string name="btn_clear_display_profile">清除分辨率记忆</string>
+    <string name="label_bt_address">本机蓝牙地址</string>
+    <string name="label_log">日志</string>
+    <string name="hint_log_scroll">新日志不会自动滚动；点右下角 ↓ 到最底部</string>
+    <string name="btn_log_bottom">↓</string>
 </resources>

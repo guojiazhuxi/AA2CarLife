@@ -72,5 +72,4 @@ object RingLog {
 
     fun snapshot(): String = synchronized(lines) { lines.joinToString("\n") }
 
-    fun clear() = synchronized(lines) { lines.clear() }
 }

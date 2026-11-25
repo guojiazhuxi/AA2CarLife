@@ -13,7 +13,6 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.media.AudioManager
 import android.os.Binder
-import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import android.view.Surface
@@ -262,28 +261,6 @@ class CarLifeService : Service() {
         }
     }
 
-    /** 手动指定分辨率（null=自动跟随车机/记忆）；只在下次启动会话时生效。 */
-    @Volatile
-    var resolutionOverride: Pair<Int, Int>? = null
-
-    /** 设置手动分辨率：未运行则同时更新请求值，运行中提示下次生效。 */
-    fun setResolutionOverride(w: Int?, h: Int?) {
-        resolutionOverride = if (w != null && h != null) w to h else null
-        if (resolutionOverride == null) {
-            RingLog.add("CARLIFE: 分辨率改为【自动】（跟随车机）")
-        } else {
-            if (w == 1920 && h == 1080) {
-                RingLog.add("CARLIFE: 注意 1920x1080 会被引擎编码为 1920x1088，车机可能不兼容；不行请换 1280x720")
-            }
-            if (client?.isRunning() != true) {
-                videoWidth = resolutionOverride!!.first
-                videoHeight = resolutionOverride!!.second
-                RingLog.add("CARLIFE: 分辨率手动指定为 ${w}x$h（下次启动生效）")
-            } else {
-                RingLog.add("CARLIFE: 分辨率手动指定为 ${w}x$h（当前会话仍用旧尺寸，断开重连后生效）")
-            }
-        }
-    }
 
     /** videoWidth/Height 是否来自"上次车机记忆"（还没连上当前车机时） */
     private var videoSizeFromMemory = false
@@ -562,13 +539,7 @@ class CarLifeService : Service() {
         RingLog.add("CARLIFE: 请求引擎按车机比例编码 ${targetW}x${targetH}（安全区=${safe?.joinToString("x") ?: "默认1412x654"}）")
         RingLog.add(
             "M1: 启动 CarLife 会话（申请 ${targetW}x${targetH}@30，协议 3.0" +
-                if (resolutionOverride != null) {
-                    "，手动指定分辨率）"
-                } else if (videoSizeFromMemory) {
-                    "，来自上次车机记忆）"
-                } else {
-                    "）"
-                },
+                if (videoSizeFromMemory) "，来自上次车机记忆）" else "）",
         )
         transcode?.release()
         transcode = buildTranscode()
@@ -725,10 +696,6 @@ class CarLifeService : Service() {
         RingLog.add("AUDIO: 本机劫持声音 " + (if (enabled) "开启" else "关闭"))
     }
 
-    fun touchComposite(action: Int, x: Int, y: Int) {
-        client?.touchComposite(action, x, y)
-    }
-
     fun touchSingle(serviceType: Int, x: Int, y: Int) {
         client?.touchSingle(serviceType, x, y)
     }
@@ -792,10 +759,6 @@ class CarLifeService : Service() {
             .setContentText(getString(R.string.notif_text))
             .setOngoing(true)
             .build()
-        if (Build.VERSION.SDK_INT >= 29) {
-            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
-        } else {
-            startForeground(1, notification)
-        }
+        startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
     }
 }

@@ -498,11 +498,6 @@ class CarLifeHuClient(
 
     // ---- 触控 ----
 
-    /** 复合动作（0x68001）：action 用 MotionEvent 动作码，指针索引在 action 高字节。 */
-    fun touchComposite(action: Int, x: Int, y: Int) {
-        enqueueTouch(CarLifeProtocol.TOUCH_ACTION, action, x, y)
-    }
-
     /** 单点/手势消息（0x68002/3/4、0x68005/6/7、0x6800A）：负载是 {x,y}。 */
     fun touchSingle(serviceType: Int, x: Int, y: Int) {
         enqueueTouch(serviceType, 0, x, y)
@@ -544,14 +539,10 @@ class CarLifeHuClient(
         try {
             touchExecutor.execute {
                 val out = touchOut ?: return@execute
-                val payload = when {
-                    serviceType == CarLifeProtocol.TOUCH_ACTION ->
-                        CarLifeProtocol.touchAction(action, px, py)
-
-                    pointerX >= 0 && pointerY >= 0 ->
-                        CarLifeProtocol.touchPointDual(px, py, ppx, ppy)
-
-                    else -> CarLifeProtocol.touchPoint(px, py)
+                val payload = if (pointerX >= 0 && pointerY >= 0) {
+                    CarLifeProtocol.touchPointDual(px, py, ppx, ppy)
+                } else {
+                    CarLifeProtocol.touchPoint(px, py)
                 }
                 try {
                     synchronized(touchLock) {

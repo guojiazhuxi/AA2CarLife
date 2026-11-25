@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/root_scroll"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -19,7 +20,7 @@
             android:layout_height="wrap_content"
             android:gravity="start"
             android:paddingTop="4dp"
-            android:text="AA2CarLife"
+            android:text="@string/app_name"
             android:textSize="24sp"
             android:textStyle="bold" />
 
@@ -68,7 +69,7 @@
             android:layout_height="wrap_content"
             android:paddingTop="24dp"
             android:paddingBottom="4dp"
-            android:text="高级选项"
+            android:text="@string/label_advanced"
             android:textSize="16sp"
             android:textStyle="bold" />
 
@@ -86,7 +87,7 @@
                 android:layout_height="wrap_content"
                 android:paddingTop="8dp"
                 android:paddingBottom="2dp"
-                android:text="显示"
+                android:text="@string/label_display"
                 android:textSize="15sp"
                 android:textStyle="bold" />
 
@@ -96,7 +97,7 @@
                 android:layout_height="wrap_content"
                 android:saveEnabled="false"
                 android:checked="false"
-                android:text="显示画面预览"
+                android:text="@string/chk_show_preview"
                 android:textSize="14sp" />
 
             <FrameLayout
@@ -127,7 +128,7 @@
                 android:layout_height="wrap_content"
                 android:gravity="center"
                 android:text="@string/hint_video_landscape"
-                android:textSize="10sp" />
+                android:textSize="11sp" />
 
             <CheckBox
                 android:id="@+id/chk_local_audio"
@@ -135,7 +136,7 @@
                 android:layout_height="wrap_content"
                 android:saveEnabled="false"
                 android:checked="false"
-                android:text="播放劫持声音（本机）"
+                android:text="@string/chk_local_audio"
                 android:textSize="14sp" />
 
             <CheckBox
@@ -151,7 +152,7 @@
                 android:layout_height="wrap_content"
                 android:paddingTop="16dp"
                 android:paddingBottom="2dp"
-                android:text="车机"
+                android:text="@string/label_vehicle"
                 android:textSize="15sp"
                 android:textStyle="bold" />
 
@@ -159,7 +160,7 @@
                 android:id="@+id/btn_clear_display_profile"
                 android:layout_width="wrap_content"
                 android:layout_height="40dp"
-                android:text="清除分辨率记忆"
+                android:text="@string/btn_clear_display_profile"
                 android:textSize="14sp" />
 
             <LinearLayout
@@ -171,8 +172,9 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:paddingStart="0dp"
                     android:paddingEnd="8dp"
-                    android:text="本机蓝牙地址"
+                    android:text="@string/label_bt_address"
                     android:textSize="14sp" />
 
                 <EditText
@@ -200,15 +202,15 @@
                 android:layout_height="wrap_content"
                 android:paddingTop="16dp"
                 android:paddingBottom="2dp"
-                android:text="日志"
+                android:text="@string/label_log"
                 android:textSize="15sp"
                 android:textStyle="bold" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="新日志不会自动滚动；点右下角 ↓ 到最底部"
-                android:textSize="10sp" />
+                android:text="@string/hint_log_scroll"
+                android:textSize="11sp" />
 
             <FrameLayout
                 android:layout_width="match_parent"
@@ -218,7 +220,8 @@
                     android:id="@+id/log_scroll"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:background="#11000000">
+                    android:background="#11000000"
+                    tools:ignore="NestedScrolling">
 
                     <TextView
                         android:id="@+id/log_text"
@@ -226,7 +229,7 @@
                         android:layout_height="wrap_content"
                         android:fontFamily="monospace"
                         android:padding="4dp"
-                        android:textSize="9sp" />
+                        android:textSize="11sp" />
                 </ScrollView>
 
                 <Button
@@ -240,7 +243,7 @@
                     android:minWidth="0dp"
                     android:minHeight="0dp"
                     android:padding="0dp"
-                    android:text="↓"
+                    android:text="@string/btn_log_bottom"
                     android:textSize="22sp" />
             </FrameLayout>
         </LinearLayout>

@@ -236,7 +236,7 @@ class CarLifeAudio(
                     .setAudioFormat(format)
                     .setBufferSizeInBytes(bufferSize)
                     .setTransferMode(AudioTrack.MODE_STREAM)
-                if (useLowLatency && android.os.Build.VERSION.SDK_INT >= 26) {
+                if (useLowLatency) {
                     b.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
                 }
                 return b.build()

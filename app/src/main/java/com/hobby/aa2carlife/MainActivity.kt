@@ -1,6 +1,7 @@
 package com.hobby.aa2carlife
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
@@ -38,16 +39,10 @@ import com.hobby.aa2carlife.aa.PlaceholderVideo
 import com.hobby.aa2carlife.diag.RingLog
 import com.hobby.aa2carlife.ui.PreviewLayout
 
-/** 捏合量 → 上下拖动量的放大系数（1.5 倍；方向若反了改成 -1.5）。 */
-private const val TRANSLATE_GAIN = 1.5f
-
 /** 点按/双击判定阈值（坐标是 1280×720 目标域）。 */
 private const val TAP_MAX_MS = 600L
 private const val DOUBLE_TAP_MS = 350L
 private const val TAP_MAX_DRIFT = 60
-
-/** 捏合翻译时，第一击抬起与第二击按下的间隔（引擎靠这个间隔识别双击）。 */
-private const val TRANSLATE_TAP_GAP_MS = 100L
 
 /** 单指拖动最小位移：从按下点累计位移小于这个值不发 MOVE，点按更可靠。 */
 private const val MOVE_MIN_DRIFT = 20
@@ -87,9 +82,6 @@ class MainActivity : Activity() {
     private var lastMoveAtMs = 0L
     private var downIsDrag = false
 
-    /** 点按额外补发 SINGLE_CLICK（引擎部分界面只认单击消息时用）。 */
-    private var tapSendSingleClick = false
-
     // 单击/双击/长按判定（官方旧触摸模式：DOWN 发 ACTION_BEGIN，点按发 SINGLE_CLICK）
     private var downAtMs = 0L
     private var downViewX = 0
@@ -98,38 +90,6 @@ class MainActivity : Activity() {
     private var lastTapX = 0
     private var lastTapY = 0
 
-    /** 双指模式B：整笔手势（含第一指 DOWN）都走复合动作通道，用于 A/B 验证引擎行为。 */
-    private var allComposite = false
-
-    /** 复合动作的 MOVE 是否带指针索引（2 | (i<<8)）；与模式B组合成 4 种测试方案。 */
-    private var moveWithIndex = false
-
-    /** 兼容模式：把双指捏合翻译成 CarLife 自带的「双击 + 上下拖动」缩放（引擎不支持真双指时用）。 */
-    private var pinchTranslate = false
-    private var translating = false
-    private var translateMidX = 0
-    private var translateAnchorY = 0f
-    private var translateStartDist = 1f
-    private var translateSynthY = 0
-    private var translateSecondDownSent = false
-    private val uiHandler = Handler(Looper.getMainLooper())
-
-    /** 捏合翻译的"第二击按住"：延时后按下，之后 MOVE 才被引擎当成双击拖动缩放。 */
-    private val translateSecondDownRunnable = Runnable {
-        if (!translating) return@Runnable
-        service?.touchSingle(CarLifeProtocol.TOUCH_DOWN, translateMidX, translateSynthY)
-        translateSecondDownSent = true
-        RingLog.add("TOUCH: 兼容模式 第二击按下（间隔 ${TRANSLATE_TAP_GAP_MS}ms）")
-    }
-
-    /** 直接照搬 CarPToCarL 的触摸管线：单指走 0x68002/3/4（DOWN/MOVE/UP），不用 BEGIN/SINGLE_CLICK。 */
-    private var cptclPipeline = true
-
-    /** 官方"新触摸模式"：每个 MotionEvent 发一条 0x68001（action 直接透传，官方默认模式）。 */
-    private var newTouchMode = false
-    private var newTouchLastX = 0
-    private var newTouchLastY = 0
-    private var newTouchLastAt = 0L
 
     /** 官方旧模式手势状态机：单指点击只发 SINGLE_CLICK，拖动才发 DOWN/MOVE/150ms UP。 */
     private var officialGestureMode = true
@@ -159,7 +119,6 @@ class MainActivity : Activity() {
     private lateinit var surfaceView: PreviewLayout
     private lateinit var textureView: TextureView
     private var previewSurface: Surface? = null
-    private lateinit var statusText: TextView
     private lateinit var statusDetail: TextView
     private lateinit var logText: TextView
     private lateinit var logScroll: ScrollView
@@ -199,7 +158,6 @@ class MainActivity : Activity() {
     private var firstUiStateApplied = false
 
     /** 0=自动 1=1280x720 2=1920x1080 3=800x480 */
-    private var resolutionChoiceIndex = 0
 
     /** AA 车机选定的视频画布尺寸（触摸坐标换算用，默认 1280x720）。 */
     @Volatile
@@ -235,8 +193,7 @@ class MainActivity : Activity() {
             service?.aaAudioFormatSink = { rate, channels -> aaServer?.setSourceAudioFormat(rate, channels) }
             attachPreviewSurfaceIfReady()
             refreshMainButton()
-            applyResolutionChoice()
-            // 若绑定完成时车机已经接入（USB 事件先于 Service 绑定），这里补一次自动启动
+                // 若绑定完成时车机已经接入（USB 事件先于 Service 绑定），这里补一次自动启动
             tryAutoStartForUsb()
             if (service?.isSessionRunning() == true) {
                 setStatus(getString(R.string.status_waiting_car))
@@ -260,20 +217,16 @@ class MainActivity : Activity() {
         }
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 白底状态栏配深色图标，避免时间/电量看不见
         runCatching {
             window.statusBarColor = Color.WHITE
-            if (Build.VERSION.SDK_INT >= 30) {
-                window.insetsController?.setSystemBarsAppearance(
-                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
-                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
-                )
-            } else if (Build.VERSION.SDK_INT >= 23) {
-                window.decorView.systemUiVisibility =
-                    window.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-            }
+            window.insetsController?.setSystemBarsAppearance(
+                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+            )
         }
         RingLog.init(applicationContext)
         // 投屏期间屏幕常亮（manifest 的 activity 没有 keepScreenOn 属性，必须代码加）
@@ -282,7 +235,6 @@ class MainActivity : Activity() {
 
         surfaceView = findViewById(R.id.surface_view)
         textureView = findViewById(R.id.preview_texture)
-        statusText = findViewById(R.id.status_text)
         statusDetail = findViewById(R.id.status_detail)
         logText = findViewById(R.id.log_text)
         logScroll = findViewById(R.id.log_scroll)
@@ -493,11 +445,7 @@ class MainActivity : Activity() {
             )
         }
         // 前台服务：保持会话存活；Android 12+ 从可见 Activity 启动合法
-        if (Build.VERSION.SDK_INT >= 26) {
-            startForegroundService(Intent(this, CarLifeService::class.java))
-        } else {
-            startService(Intent(this, CarLifeService::class.java))
-        }
+        startForegroundService(Intent(this, CarLifeService::class.java))
         syncUsbAccessory()
     }
 
@@ -603,7 +551,7 @@ class MainActivity : Activity() {
 
     private fun appendLog(line: String) {
         if (isFinishing) return
-        if (Build.VERSION.SDK_INT >= 17 && isDestroyed) return
+        if (isDestroyed) return
         logText.append(line)
         logText.append("\n")
     }
@@ -719,7 +667,7 @@ class MainActivity : Activity() {
         RingLog.add("UI: 分辨率提示 - " + msg)
         runOnUiThread {
             if (isFinishing) return@runOnUiThread
-            if (Build.VERSION.SDK_INT >= 17 && isDestroyed) return@runOnUiThread
+            if (isDestroyed) return@runOnUiThread
             Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
             hintExtra.text = msg
             hintExtra.visibility = View.VISIBLE
@@ -947,10 +895,6 @@ class MainActivity : Activity() {
         return hex.chunked(2).joinToString(":")
     }
 
-    private fun applyResolutionChoice() {
-        // 固定 1080p 输出：不再允许手动改分辨率（引擎固定按车机安全区请求，AA 固定 1920x1080）
-        service?.setResolutionOverride(null, null)
-    }
 
     /** 按优先级组合状态：投屏中 > 车机握手 > CarLife 等待车机 > 车机已接入等待会话 > 失败/空闲 */
     private fun recomputeStatus() {
@@ -1159,166 +1103,18 @@ class MainActivity : Activity() {
             }
         }
 
-        val act = CarLifeProtocol.TouchAction
-
         // 多指事件的详细日志（每次手势前 30 条），用于定位"哪些触摸真的发到了引擎/发的是什么"
         if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) multiDebugBudget = 30
         if (event.pointerCount >= 2 && multiDebugBudget > 0) {
             multiDebugBudget--
             val points = (0 until event.pointerCount.coerceAtMost(2))
                 .joinToString(" ") { i -> "(${x(i)},${y(i)})" }
-            val mode = when {
-                pinchTranslate -> "翻译"
-                newTouchMode && !cptclPipeline -> "新触摸"
-                cptclPipeline -> "CPTCL"
-                else -> "旧模式"
-            }
             RingLog.add(
                 "TOUCH: 多指 ev action=${event.actionMasked} pc=${event.pointerCount} " +
-                    "mode=$mode $points",
+                    "mode=CPTCL $points",
             )
         }
 
-        // 官方"新触摸模式"：每个 MotionEvent 一条 0x68001，action 直接透传（与百度官方
-        // TouchListenerManager 的新模式一致）。单指的点按/拖动/双击都由它承载。
-        if (newTouchMode && !cptclPipeline && !pinchTranslate) {
-            if (event.pointerCount >= 1) {
-                val action = event.action // getAction()：POINTER_DOWN/UP 自带指针索引位
-                if (event.actionMasked == MotionEvent.ACTION_MOVE) {
-                    // 新触摸是逐 MotionEvent 发送；必须节流，否则单线程触摸队列会积压，
-                    // 表现为手指还在滑但画面不动、抬手后才追上。
-                    val now = android.os.SystemClock.uptimeMillis()
-                    val mxx = x(0)
-                    val myy = y(0)
-                    val d = kotlin.math.abs(mxx - newTouchLastX) + kotlin.math.abs(myy - newTouchLastY)
-                    if (now - newTouchLastAt >= 16L || d >= 4) {
-                        svc.touchComposite(action, mxx, myy)
-                        newTouchLastX = mxx
-                        newTouchLastY = myy
-                        newTouchLastAt = now
-                    }
-                } else {
-                    svc.touchComposite(action, x(0), y(0))
-                    if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-                        newTouchLastX = x(0)
-                        newTouchLastY = y(0)
-                        newTouchLastAt = android.os.SystemClock.uptimeMillis()
-                    }
-                }
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        touchLogBudget = 3
-                        logTouch("新触摸 ↓ ($action @ ${x(0)},${y(0)})")
-                    }
-
-                    MotionEvent.ACTION_UP ->
-                        logTouch("新触摸 ↑ ($action @ ${x(0)},${y(0)})")
-
-                    MotionEvent.ACTION_POINTER_DOWN ->
-                        logTouch("新触摸 第二指按下 action=$action")
-
-                    MotionEvent.ACTION_MOVE ->
-                        if (touchLogBudget > 0 && event.pointerCount == 1) {
-                            // 拖动日志限流，只在预算内打
-                            touchLogBudget--
-                            RingLog.add("TOUCH: 新触摸 MOVE (${x(0)},${y(0)})")
-                        }
-                }
-            }
-            return true
-        }
-
-        // 兼容模式：CarLife 引擎不支持真双指时，把"双指捏合"翻译成它自带的
-        // "双击 + 上下拖动" 缩放手势（单指事件合成，走已验证的单点通道）。
-        if (pinchTranslate) {
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    singleDown = true
-                    downIsDrag = false
-                    touchLogBudget = 8
-                    multiDebugBudget = 0
-                    downViewX = x(0)
-                    downViewY = y(0)
-                    lastSentMoveX = downViewX
-                    lastSentMoveY = downViewY
-                    lastMoveAtMs = android.os.SystemClock.uptimeMillis()
-                    svc.touchSingle(CarLifeProtocol.TOUCH_DOWN, downViewX, downViewY)
-                    logTouch("兼容模式 ↓ ($downViewX,$downViewY)")
-                }
-
-                MotionEvent.ACTION_POINTER_DOWN -> {
-                    if (event.actionIndex == 1 && event.pointerCount >= 2) {
-                        // 第一指保持按下 → 在第二指按下时抬起 = 完成第一击。
-                        // 关键：第一击与第二击必须落在**同一点**（第一指的按下点），
-                        // 否则引擎的距离判定不认这是"双击"（日志里曾差 200+ px）。
-                        svc.touchSingle(CarLifeProtocol.TOUCH_UP, downViewX, downViewY)
-                        singleDown = false
-                        translating = true
-                        translateSecondDownSent = false
-                        translateMidX = downViewX
-                        translateAnchorY = downViewY.toFloat()
-                        translateSynthY = downViewY
-                        translateStartDist = pinchDistance(event).coerceAtLeast(1f)
-                        // 间隔 100ms 再发第二击按下，引擎才能识别成"双击"；
-                        // 之后按捏合量发 MOVE，就是 CarLife 自带的双击+拖动缩放
-                        uiHandler.postDelayed(translateSecondDownRunnable, TRANSLATE_TAP_GAP_MS)
-                        logTouch("兼容模式 第一击 @($downViewX,$downViewY)，等待第二击")
-                    }
-                }
-
-                MotionEvent.ACTION_MOVE -> {
-                    if (translating && translateSecondDownSent && event.pointerCount >= 2) {
-                        val delta = pinchDistance(event) - translateStartDist
-                        // 张开（放大）→ 向上拖；捏合（缩小）→ 向下拖
-                        val synthY = (translateAnchorY - delta * TRANSLATE_GAIN)
-                            .toInt().coerceIn(0, targetHeight - 1)
-                        if (synthY != translateSynthY) {
-                            translateSynthY = synthY
-                            svc.touchSingle(CarLifeProtocol.TOUCH_MOVE, translateMidX, synthY)
-                        }
-                    } else if (singleDown) {
-                        val mx = x(0)
-                        val my = y(0)
-                        val totalDrift = kotlin.math.abs(mx - downViewX) + kotlin.math.abs(my - downViewY)
-                        if (downIsDrag || totalDrift >= MOVE_MIN_DRIFT) {
-                            downIsDrag = true
-                            val now = android.os.SystemClock.uptimeMillis()
-                            val drift = kotlin.math.abs(mx - lastSentMoveX) + kotlin.math.abs(my - lastSentMoveY)
-                            if (drift >= 4 || now - lastMoveAtMs >= 32L) {
-                                lastSentMoveX = mx
-                                lastSentMoveY = my
-                                lastMoveAtMs = now
-                                svc.touchSingle(CarLifeProtocol.TOUCH_MOVE, mx, my)
-                            }
-                        }
-                    }
-                }
-
-                MotionEvent.ACTION_POINTER_UP,
-                MotionEvent.ACTION_UP,
-                MotionEvent.ACTION_CANCEL,
-                -> {
-                    uiHandler.removeCallbacks(translateSecondDownRunnable)
-                    if (translating) {
-                        if (translateSecondDownSent) {
-                            svc.touchSingle(CarLifeProtocol.TOUCH_UP, translateMidX, translateSynthY)
-                        }
-                        translating = false
-                        translateSecondDownSent = false
-                        logTouch("兼容模式 缩放结束 UP($translateSynthY)")
-                    } else if (singleDown) {
-                        val drift = kotlin.math.abs(x(0) - downViewX) + kotlin.math.abs(y(0) - downViewY)
-                        if (drift <= TAP_MAX_DRIFT) {
-                            svc.touchSingle(CarLifeProtocol.TOUCH_UP, downViewX, downViewY)
-                        } else {
-                            svc.touchSingle(CarLifeProtocol.TOUCH_UP, x(0), y(0))
-                        }
-                        singleDown = false
-                    }
-                }
-            }
-            return true
-        }
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -1334,17 +1130,8 @@ class MainActivity : Activity() {
                 lastSentMoveY = downViewY
                 lastMoveAtMs = downAtMs
                 multiDebugBudget = 0
-                if (allComposite) {
-                    svc.touchComposite(act.DOWN, downViewX, downViewY)
-                    logTouch("复合 ↓ ($downViewX,$downViewY)（模式B）")
-                } else if (cptclPipeline) {
-                    svc.touchSingle(CarLifeProtocol.TOUCH_DOWN, downViewX, downViewY)
-                    logTouch("CPTCL ↓ ($downViewX,$downViewY)")
-                } else {
-                    // 官方旧触摸模式：按下先发 ACTION_BEGIN（不是 0x68002）
-                    svc.touchSingle(CarLifeProtocol.TOUCH_ACTION_BEGIN, downViewX, downViewY)
-                    logTouch("BEGIN($downViewX,$downViewY)")
-                }
+                svc.touchSingle(CarLifeProtocol.TOUCH_DOWN, downViewX, downViewY)
+                logTouch("CPTCL ↓ ($downViewX,$downViewY)")
             }
 
             MotionEvent.ACTION_POINTER_DOWN -> {
@@ -1354,49 +1141,29 @@ class MainActivity : Activity() {
                     secondDown = true
                     secondX = x(1)
                     secondY = y(1)
-                    if (cptclPipeline) {
-                        // 引擎的新多指协议：0x6800B（负载 SinglePoint{x,y}）
-                        svc.touchPointerDown(secondX, secondY)
-                        logTouch("多指 ↓2 ($secondX,$secondY) → 0x6800B")
-                    } else {
-                        svc.touchComposite(act.withPointer(act.POINTER_DOWN, 1), secondX, secondY)
-                        logTouch("多指 ↓2 ($secondX,$secondY) → 复合通道 POINTER_DOWN")
-                    }
+                    svc.touchPointerDown(secondX, secondY)
+                    logTouch("多指 ↓2 ($secondX,$secondY) → 0x6800B")
                 }
             }
 
             MotionEvent.ACTION_MOVE -> {
                 if (multiActive) {
-                    if (cptclPipeline) {
-                        // 双指 MOVE：0x68004 + SinglePoint{x,y,pointerx,pointery}
-                        if (event.pointerCount >= 2) {
-                            svc.touchMoveDual(x(0), y(0), x(1), y(1))
-                        }
-                    } else {
-                        // 每根手指各发一条复合 ACTION_MOVE；是否带指针索引由开关决定
-                        val count = event.pointerCount.coerceAtMost(2)
-                        for (i in 0 until count) {
-                            val action = if (moveWithIndex) act.MOVE or (i shl 8) else act.MOVE
-                            svc.touchComposite(action, x(i), y(i))
-                        }
+                    if (event.pointerCount >= 2) {
+                        svc.touchMoveDual(x(0), y(0), x(1), y(1))
                     }
                 } else if (singleDown) {
-                    if (allComposite) {
-                        svc.touchComposite(act.MOVE, x(0), y(0))
-                    } else {
-                        val mx = x(0)
-                        val my = y(0)
-                        val totalDrift = kotlin.math.abs(mx - downViewX) + kotlin.math.abs(my - downViewY)
-                        if (downIsDrag || totalDrift >= MOVE_MIN_DRIFT) {
-                            downIsDrag = true
-                            val now = android.os.SystemClock.uptimeMillis()
-                            val drift = kotlin.math.abs(mx - lastSentMoveX) + kotlin.math.abs(my - lastSentMoveY)
-                            if (drift >= 4 || now - lastMoveAtMs >= 32L) {
-                                lastSentMoveX = mx
-                                lastSentMoveY = my
-                                lastMoveAtMs = now
-                                svc.touchSingle(CarLifeProtocol.TOUCH_MOVE, mx, my)
-                            }
+                    val mx = x(0)
+                    val my = y(0)
+                    val totalDrift = kotlin.math.abs(mx - downViewX) + kotlin.math.abs(my - downViewY)
+                    if (downIsDrag || totalDrift >= MOVE_MIN_DRIFT) {
+                        downIsDrag = true
+                        val now = android.os.SystemClock.uptimeMillis()
+                        val drift = kotlin.math.abs(mx - lastSentMoveX) + kotlin.math.abs(my - lastSentMoveY)
+                        if (drift >= 4 || now - lastMoveAtMs >= 32L) {
+                            lastSentMoveX = mx
+                            lastSentMoveY = my
+                            lastMoveAtMs = now
+                            svc.touchSingle(CarLifeProtocol.TOUCH_MOVE, mx, my)
                         }
                     }
                 }
@@ -1408,44 +1175,22 @@ class MainActivity : Activity() {
                     if (index == 1) {
                         secondX = x(1)
                         secondY = y(1)
-                        if (cptclPipeline) {
-                            svc.touchOtherPointerUp(secondX, secondY)
-                            logTouch("多指 ↑2 ($secondX,$secondY) → 0x6800D")
-                        } else {
-                            svc.touchComposite(act.withPointer(act.POINTER_UP, 1), secondX, secondY)
-                            logTouch("多指 ↑2 ($secondX,$secondY) → POINTER_UP")
-                        }
+                        svc.touchOtherPointerUp(secondX, secondY)
+                        logTouch("多指 ↑2 ($secondX,$secondY) → 0x6800D")
                         secondDown = false
                     } else {
-                        if (cptclPipeline) {
-                            svc.touchPointerUp(x(index), y(index))
-                        } else {
-                            svc.touchComposite(
-                                act.withPointer(act.POINTER_UP, index),
-                                x(index),
-                                y(index),
-                            )
-                        }
+                        svc.touchPointerUp(x(index), y(index))
                     }
                 }
             }
 
             MotionEvent.ACTION_UP -> {
                 if (multiActive) {
-                    // 收尾顺序固定：先抬起还按着的手指 1，再 ACTION_UP，否则引擎留幽灵触点
-                    if (cptclPipeline) {
-                        if (secondDown) {
-                            svc.touchOtherPointerUp(secondX, secondY)
-                            secondDown = false
-                        }
-                        svc.touchSingle(CarLifeProtocol.TOUCH_UP, x(0), y(0))
-                    } else {
-                        if (secondDown) {
-                            svc.touchComposite(act.withPointer(act.POINTER_UP, 1), secondX, secondY)
-                            secondDown = false
-                        }
-                        svc.touchComposite(act.UP, x(0), y(0))
+                    if (secondDown) {
+                        svc.touchOtherPointerUp(secondX, secondY)
+                        secondDown = false
                     }
+                    svc.touchSingle(CarLifeProtocol.TOUCH_UP, x(0), y(0))
                     multiActive = false
                     singleDown = false
                     logTouch("双指手势结束")
@@ -1454,74 +1199,31 @@ class MainActivity : Activity() {
                     val upX = x(0)
                     val upY = y(0)
                     val duration = now - downAtMs
-                    val moved = kotlin.math.abs(upX - downViewX) + kotlin.math.abs(upY - downViewY)
+                    val drift = kotlin.math.abs(upX - downViewX) + kotlin.math.abs(upY - downViewY)
+                    val isTap = duration <= TAP_MAX_MS && drift <= TAP_MAX_DRIFT
+                    val upPointX = if (isTap) downViewX else upX
+                    val upPointY = if (isTap) downViewY else upY
                     singleDown = false
-                    if (allComposite) {
-                        svc.touchComposite(act.UP, upX, upY)
-                        logTouch("复合 ↑ ($upX,$upY)")
-                    } else if (cptclPipeline) {
-                        // 点按：抬点归位到按下点（引擎按 down/up 距离判断点击，减少"手抖"导致的丢失）
-                        val drift = kotlin.math.abs(upX - downViewX) + kotlin.math.abs(upY - downViewY)
-                        val isTap = duration <= TAP_MAX_MS && drift <= TAP_MAX_DRIFT
-                        val upPointX = if (isTap) downViewX else upX
-                        val upPointY = if (isTap) downViewY else upY
-                        svc.touchSingle(CarLifeProtocol.TOUCH_UP, upPointX, upPointY)
-                        if (isTap && tapSendSingleClick) {
-                            svc.touchSingle(CarLifeProtocol.TOUCH_SINGLE_CLICK, upPointX, upPointY)
-                        }
-                        logTouch(
-                            "CPTCL ↑ ($upPointX,$upPointY) ${duration}ms drift=$drift" +
-                                if (isTap) (if (tapSendSingleClick) " tap+单击" else " tap") else "",
-                        )
-                    } else if (duration <= TAP_MAX_MS && moved <= TAP_MAX_DRIFT) {
-                        // 点按：官方旧触摸模式用 SINGLE_CLICK；连续两次点按发 DOUBLE_CLICK
-                        val isDouble = now - lastTapAtMs <= DOUBLE_TAP_MS &&
-                            kotlin.math.abs(upX - lastTapX) <= TAP_MAX_DRIFT &&
-                            kotlin.math.abs(upY - lastTapY) <= TAP_MAX_DRIFT
-                        if (isDouble) {
-                            svc.touchSingle(CarLifeProtocol.TOUCH_DOUBLE_CLICK, upX, upY)
-                            logTouch("DOUBLE_CLICK ($upX,$upY)")
-                            lastTapAtMs = 0
-                        } else {
-                            svc.touchSingle(CarLifeProtocol.TOUCH_SINGLE_CLICK, upX, upY)
-                            logTouch("SINGLE_CLICK ($upX,$upY) ${duration}ms")
-                            lastTapAtMs = now
-                            lastTapX = upX
-                            lastTapY = upY
-                        }
-                    } else {
-                        svc.touchSingle(CarLifeProtocol.TOUCH_UP, upX, upY)
-                        logTouch("↑ ($upX,$upY) ${duration}ms 移动 $moved")
-                    }
+                    svc.touchSingle(CarLifeProtocol.TOUCH_UP, upPointX, upPointY)
+                    logTouch("CPTCL ↑ ($upPointX,$upPointY) ${duration}ms drift=$drift")
                 }
             }
 
             MotionEvent.ACTION_CANCEL -> {
                 if (multiActive) {
-                    if (cptclPipeline) {
-                        if (secondDown) {
-                            svc.touchOtherPointerUp(secondX, secondY)
-                            secondDown = false
-                        }
-                        svc.touchSingle(CarLifeProtocol.TOUCH_UP, x(0), y(0))
-                    } else {
-                        if (secondDown) {
-                            svc.touchComposite(act.withPointer(act.POINTER_UP, 1), secondX, secondY)
-                            secondDown = false
-                        }
-                        svc.touchComposite(act.UP, x(0), y(0))
+                    if (secondDown) {
+                        svc.touchOtherPointerUp(secondX, secondY)
+                        secondDown = false
                     }
+                    svc.touchSingle(CarLifeProtocol.TOUCH_UP, x(0), y(0))
                     multiActive = false
                 } else if (singleDown) {
-                    if (allComposite) {
-                        svc.touchComposite(act.UP, x(0), y(0))
-                    } else {
-                        svc.touchSingle(CarLifeProtocol.TOUCH_UP, x(0), y(0))
-                    }
+                    svc.touchSingle(CarLifeProtocol.TOUCH_UP, x(0), y(0))
                 }
                 singleDown = false
             }
         }
+
         return true
     }
 
@@ -1529,14 +1231,6 @@ class MainActivity : Activity() {
         if (touchLogBudget <= 0) return
         touchLogBudget--
         RingLog.add("TOUCH: $message")
-    }
-
-    /** 双指距离（像素），用于把捏合量映射成上下拖动量。 */
-    private fun pinchDistance(event: MotionEvent): Float {
-        if (event.pointerCount < 2) return 1f
-        val dx = event.getX(0) - event.getX(1)
-        val dy = event.getY(0) - event.getY(1)
-        return kotlin.math.hypot(dx, dy)
     }
 
     // ---- M2 台架：AA 车机发来的触摸 → CarLife 触摸消息 ----

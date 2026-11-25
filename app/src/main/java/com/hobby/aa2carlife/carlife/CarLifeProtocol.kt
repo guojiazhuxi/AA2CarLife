@@ -46,29 +46,15 @@ internal object CarLifeProtocol {
     const val HEARTBEAT = 131074
 
     // ---- 触控（9340，控制帧格式 8B 头）----
-    const val TOUCH_ACTION = 425985 // 0x68001 复合动作
     const val TOUCH_DOWN = 425986 // 0x68002
     const val TOUCH_UP = 425987 // 0x68003
     const val TOUCH_MOVE = 425988 // 0x68004
     const val TOUCH_SINGLE_CLICK = 425989 // 0x68005 单击（官方旧触摸模式的点按）
     const val TOUCH_DOUBLE_CLICK = 425990 // 0x68006 双击
-    const val TOUCH_LONG_PRESS = 425991 // 0x68007 长按
-    const val TOUCH_HARD_KEY = 425992 // 0x68008 硬键
     const val TOUCH_ACTION_BEGIN = 425994 // 0x6800A 手势开始（官方旧触摸模式在 DOWN 时发）
     const val TOUCH_POINTER_DOWN = 425995 // 0x6800B 第二根手指按下（负载 CarlifeTouchSinglePoint{x,y}）
     const val TOUCH_POINTER_UP = 425996 // 0x6800C 第一根手指抬起（负载 SinglePoint）
     const val TOUCH_OTHER_POINTER_UP = 425997 // 0x6800D 第二根手指抬起（负载 SinglePoint）
-
-    object TouchAction {
-        const val DOWN = 0
-        const val UP = 1
-        const val MOVE = 2
-        const val POINTER_DOWN = 5
-        const val POINTER_UP = 6
-        const val POINTER_INDEX_SHIFT = 8
-
-        fun withPointer(base: Int, pointerIndex: Int): Int = base or (pointerIndex shl POINTER_INDEX_SHIFT)
-    }
 
     // ---- 音频（9240 媒体 / 9241 TTS；M1 不实现，仅保留常量）----
     const val AUDIO_HEAD_LEN = 12
@@ -82,7 +68,6 @@ internal object CarLifeProtocol {
     const val TTS_PKG_INIT = 0x40001
     const val TTS_PKG_STOP = 0x40002
     const val TTS_PKG_NORMAL = 0x40003
-    const val TTS_DEFAULT_RATE = 16_000
 
     /** CMD 通道 CONNECT_TYPE：5 = Wi-Fi 局域网（本机回环同样按此上报）。 */
     const val CONNECT_TYPE_WIFI = 5
@@ -99,16 +84,6 @@ internal object CarLifeProtocol {
         writeU16(out, 2, 0)
         writeU32(out, 4, serviceType)
         System.arraycopy(payload, 0, out, 8, payload.size)
-        return out
-    }
-
-    /** 数据通道（非 Channel 1）：`[u32 len][u32 seq][u32 serviceType]`。 */
-    fun packStream(seq: Int, serviceType: Int, payload: ByteArray): ByteArray {
-        val out = ByteArray(12 + payload.size)
-        writeU32(out, 0, payload.size)
-        writeU32(out, 4, seq)
-        writeU32(out, 8, serviceType)
-        System.arraycopy(payload, 0, out, 12, payload.size)
         return out
     }
 
@@ -275,15 +250,6 @@ internal object CarLifeProtocol {
      */
     fun touchPointDual(x: Int, y: Int, pointerX: Int, pointerY: Int): ByteArray =
         pbVarint(1, x) + pbVarint(2, y) + pbVarint(3, pointerX) + pbVarint(4, pointerY)
-
-    /**
-     * 复合动作负载 `CarlifeTouchAction{action,x,y}`。
-     *
-     * action 是原始 MotionEvent 动作码，指针索引放在高字节（`action or (index shl 8)`）。
-     * 这是双指唯一能表达「哪根手指」的通道：单点消息的负载只有 x/y。
-     */
-    fun touchAction(action: Int, x: Int, y: Int): ByteArray =
-        pbVarint(1, action) + pbVarint(2, x) + pbVarint(3, y)
 
     // ---- 手写 protobuf（不引 protobuf 运行时）----
 
