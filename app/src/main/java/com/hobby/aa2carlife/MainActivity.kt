@@ -400,11 +400,12 @@ class MainActivity : Activity() {
             surfaceView.rotate90 = checked
             RingLog.add("VIDEO: 预览旋转90° " + (if (checked) "开启" else "关闭") + "（TextureView 变换，不重建解码器）")
         }
-        // 单击补发：默认关闭（CPTCL 只需要 DOWN/UP），并持久化，避免重启后自己勾回来
+        // 单击补发：CarLife 设置页等按钮依赖显式 0x68005 SINGLE_CLICK，默认开启；
+        // 地图卡片拖动失败与它无关（拖动不发 SINGLE_CLICK），不要再为地图关掉它。
         val touchPrefs = getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
-        val savedSingleClick = touchPrefs.getBoolean("tap_send_single_click", false)
-        tapSendSingleClick = savedSingleClick
-        chkTapSingleClick.isChecked = savedSingleClick
+        tapSendSingleClick = true
+        chkTapSingleClick.isChecked = true
+        touchPrefs.edit().putBoolean("tap_send_single_click", true).apply()
         chkTapSingleClick.setOnCheckedChangeListener { _, checked ->
             tapSendSingleClick = checked
             touchPrefs.edit().putBoolean("tap_send_single_click", checked).apply()
