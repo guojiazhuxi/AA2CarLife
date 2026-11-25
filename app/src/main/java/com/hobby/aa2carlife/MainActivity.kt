@@ -714,7 +714,8 @@ class MainActivity : Activity() {
     private fun updateStatusFromLog(line: String) {
         if (line.contains("记录编码参数")) maybeRegeneratePlaceholder()
         if (line.contains("★ 首帧") || line.contains("TRANSCODE: 源码流") ||
-            line.contains("请求引擎按车机比例编码") || line.contains("视频请求分辨率")
+            line.contains("请求引擎按车机比例编码") || line.contains("视频请求分辨率") ||
+            line.contains("VIDEO: 解码输出")
         ) {
             updatePreviewAspect()
         }

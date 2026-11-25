@@ -217,7 +217,7 @@ class CarLifeService : Service() {
         } else if (lastKeyFrame == null || AaAnnexB.isKeyFrame(frame)) {
             lastKeyFrame = frame
         }
-        decoder?.submit(frame, 0)
+        // 预览解码器只喂原始 CarLife 帧（onVideoFrame 里），这里不再喂转码后的 1920x1088。
         aaVideoSink?.invoke(frame)
     }
 
@@ -541,7 +541,9 @@ class CarLifeService : Service() {
             onVideoFrame = { frame, ptsUs ->
                 val tx = transcode
                 if (tx != null) {
-                    // 走补边转码：原始帧解码→画进 AA 画布安全区→重编码后由 handleTranscodedFrame 出去
+                    // 预览用原始 CarLife 帧（1412x654），这样预览不会被转码画布的黑边二次 letterbox。
+                    decoder?.submit(frame, ptsUs)
+                    // AA 侧仍走补边转码：原始帧→画进安全区→重编码后由 handleTranscodedFrame 出去。
                     tx.submit(frame)
                 } else {
                     // 兜底：直通
