@@ -136,6 +136,8 @@ class MainActivity : Activity() {
     private var officialGestureMode = true
     private var officialScrollStarted = false
     private var officialWasScroll = false
+    private var officialMultiFallback = false
+    private var officialDownSent = false
     private var officialDownX = 0
     private var officialDownY = 0
     private var officialLastX = 0
@@ -149,6 +151,7 @@ class MainActivity : Activity() {
         if (officialScrollStarted) {
             service?.touchSingle(CarLifeProtocol.TOUCH_UP, officialLastX, officialLastY)
             officialScrollStarted = false
+            officialDownSent = false
             RingLog.add("TOUCH: 官方手势 150ms 无移动 → UP")
         }
     }
@@ -982,12 +985,36 @@ class MainActivity : Activity() {
         // ---- 官方旧模式单指手势（对齐 GestureListenerImp） ----
         // 点击只发 SINGLE_CLICK；拖动才补 DOWN + MOVE，150ms 无移动补 UP。
         if (officialGestureMode) {
-            if (event.pointerCount > 1) {
-                RingLog.add("TOUCH: 官方手势模式暂不支持多指；双指请关闭「官方手势」走 CPTCL")
-                return true
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                officialMultiFallback = false
+                officialDownSent = false
             }
-            val now = android.os.SystemClock.uptimeMillis()
-            when (event.actionMasked) {
+            if (event.pointerCount > 1 || officialMultiFallback) {
+                if (!officialMultiFallback) {
+                    // 第二根手指出现：结束单指官方手势，切到 CPTCL 多指通道
+                    officialUpHandler.removeCallbacks(officialUpRunnable)
+                    if (officialScrollStarted) {
+                        svc.touchSingle(CarLifeProtocol.TOUCH_UP, officialLastX, officialLastY)
+                        officialScrollStarted = false
+                        officialDownSent = false
+                    }
+                    if (!officialDownSent) {
+                        svc.touchSingle(CarLifeProtocol.TOUCH_DOWN, officialDownX, officialDownY)
+                        officialDownSent = true
+                    }
+                    singleDown = true
+                    downIsDrag = true
+                    multiActive = false
+                    downViewX = officialDownX
+                    downViewY = officialDownY
+                    downAtMs = android.os.SystemClock.uptimeMillis()
+                    officialMultiFallback = true
+                    RingLog.add("TOUCH: 官方手势 → 双指，切 CPTCL 多指")
+                }
+                // 继续走下面的 CPTCL 多指分支
+            } else {
+                val now = android.os.SystemClock.uptimeMillis()
+                when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     officialUpHandler.removeCallbacks(officialUpRunnable)
                     officialScrollStarted = false
@@ -1008,6 +1035,7 @@ class MainActivity : Activity() {
                     if (!officialWasScroll && total >= MOVE_MIN_DRIFT) {
                         // 官方 onScroll 第一次滚动补 DOWN（用按下点）
                         svc.touchSingle(CarLifeProtocol.TOUCH_DOWN, officialDownX, officialDownY)
+                        officialDownSent = true
                         officialScrollStarted = true
                         officialWasScroll = true
                         svc.touchSingle(CarLifeProtocol.TOUCH_MOVE, mx, my)
@@ -1038,6 +1066,7 @@ class MainActivity : Activity() {
                     if (officialScrollStarted) {
                         svc.touchSingle(CarLifeProtocol.TOUCH_UP, officialLastX, officialLastY)
                         officialScrollStarted = false
+                        officialDownSent = false
                         RingLog.add("TOUCH: 官方手势 拖动结束 UP(${officialLastX},${officialLastY})")
                     } else if (!officialWasScroll) {
                         val isDouble = now - officialLastTapAt <= DOUBLE_TAP_MS &&
@@ -1064,11 +1093,13 @@ class MainActivity : Activity() {
                         svc.touchSingle(CarLifeProtocol.TOUCH_UP, officialLastX, officialLastY)
                         officialScrollStarted = false
                     }
+                    officialDownSent = false
                     officialWasScroll = false
                     return true
                 }
+                }
+                return true
             }
-            return true
         }
 
         val act = CarLifeProtocol.TouchAction
