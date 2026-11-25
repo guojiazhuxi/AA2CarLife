@@ -250,6 +250,20 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // 系统恢复视图状态时可能把勾选恢复成旧值；每次回前台按偏好重新应用。
+        val sp = getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
+        val showPreview = sp.getBoolean("show_preview_v2", false)
+        chkShowPreview.isChecked = showPreview
+        val hintPreview = findViewById<TextView>(R.id.hint_preview)
+        previewFrame.visibility = if (showPreview) View.VISIBLE else View.GONE
+        hintPreview.visibility = previewFrame.visibility
+        val localAudio = sp.getBoolean("local_audio_enabled_v2", false)
+        chkLocalAudio.isChecked = localAudio
+        service?.setLocalAudioEnabled(localAudio)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 白底状态栏配深色图标，避免时间/电量看不见
