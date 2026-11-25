@@ -36,6 +36,9 @@ class CarLifeAudio(
     private var mediaPlayPending = false
     private var ttsPlayPending = false
 
+    /** release 后置 true；防止回调线程拿到旧引用又创建新的 AudioTrack。 */
+    private var released = false
+
     // 媒体音频统计（每 ~2 秒打一行，用于确认 PCM 是否在持续流动）
     private var mediaPackets = 0L
     private var mediaBytes = 0L
@@ -50,6 +53,7 @@ class CarLifeAudio(
 
     @Synchronized
     fun onMediaFormat(sampleRate: Int, channels: Int) {
+        if (released) return
         val rate = if (sampleRate > 0) sampleRate else DEFAULT_RATE
         val ch = if (channels in 1..2) channels else 2
         if (mediaTrack != null && rate == mediaRate && ch == mediaChannels) return
@@ -72,6 +76,7 @@ class CarLifeAudio(
 
     @Synchronized
     fun onMediaPcm(data: ByteArray, length: Int) {
+        if (released) return
         if (length <= 0) return
         val track = mediaTrack ?: run {
             onMediaFormat(DEFAULT_RATE, 2)
@@ -103,11 +108,48 @@ class CarLifeAudio(
 
     @Synchronized
     fun onMediaPause() {
+        if (released) return
         runCatching { mediaTrack?.pause() }
+        RingLog.add("AUDIO: 媒体暂停（本地 AudioTrack）")
+    }
+
+    @Synchronized
+    fun onMediaResume() {
+        if (released) return
+        val track = mediaTrack ?: return
+        if (mediaPlayPending) return // 首包还没到，等 onMediaPcm 启动
+        if (track.playState != AudioTrack.PLAYSTATE_PLAYING) {
+            runCatching { track.play() }.onFailure {
+                RingLog.add("AUDIO: 媒体恢复失败 - ${it.message}")
+            }
+            RingLog.add("AUDIO: 媒体恢复（本地 AudioTrack）")
+        }
+    }
+
+    @Synchronized
+    fun onMediaStop() {
+        if (released) return
+        val track = mediaTrack ?: return
+        runCatching { track.pause() }
+        runCatching { track.flush() }
+        // 下一包 PCM 到达时重新启动；避免 CarLife STOP 后本地还残留旧声音。
+        mediaPlayPending = true
+        RingLog.add("AUDIO: 媒体停止（本地 AudioTrack flush）")
+    }
+
+    @Synchronized
+    fun onTtsStop() {
+        if (released) return
+        val track = ttsTrack ?: return
+        runCatching { track.pause() }
+        runCatching { track.flush() }
+        ttsPlayPending = true
+        RingLog.add("AUDIO: TTS 停止（本地 AudioTrack flush）")
     }
 
     @Synchronized
     fun onTtsFormat(sampleRate: Int, channels: Int) {
+        if (released) return
         val rate = if (sampleRate > 0) sampleRate else TTS_RATE
         val ch = if (channels in 1..2) channels else 1
         if (ttsTrack != null && rate == ttsRate && ch == ttsChannels) return
@@ -126,6 +168,7 @@ class CarLifeAudio(
 
     @Synchronized
     fun onTtsPcm(data: ByteArray, length: Int) {
+        if (released) return
         if (length <= 0) return
         val track = ttsTrack ?: run {
             onTtsFormat(TTS_RATE, 1)
@@ -145,6 +188,8 @@ class CarLifeAudio(
 
     @Synchronized
     fun release() {
+        if (released) return
+        released = true
         releaseMediaTrack()
         releaseTtsTrack()
     }

@@ -86,7 +86,7 @@ class TranscodePipeline(
     private val thread = Thread({ runLoop() }, "carlife-transcode").apply { isDaemon = true }
 
     fun start() {
-        thread.start()
+        if (thread.state == Thread.State.NEW) thread.start()
     }
 
     fun submit(annexB: ByteArray) {
@@ -102,6 +102,17 @@ class TranscodePipeline(
         running.set(false)
         synchronized(lock) { lock.notifyAll() }
         thread.interrupt()
+        // 等 GL 线程释放 EGL/MediaCodec，避免旧管线和新管线同时占用资源。
+        if (Thread.currentThread() !== thread) {
+            try {
+                thread.join(RELEASE_JOIN_TIMEOUT_MS)
+                if (thread.isAlive) {
+                    RingLog.add("TRANSCODE: 等待转码线程退出超时（${RELEASE_JOIN_TIMEOUT_MS}ms）")
+                }
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+        }
     }
 
     // ---------- GL 线程主循环 ----------
@@ -542,6 +553,8 @@ class TranscodePipeline(
     }
 
     companion object {
+        private const val RELEASE_JOIN_TIMEOUT_MS = 1500L
+
         /** 从 SPS 解析显示宽高（找不到返回 null）。 */
         fun parseSpsDimensions(annexB: ByteArray): Pair<Int, Int>? {
             var i = 0

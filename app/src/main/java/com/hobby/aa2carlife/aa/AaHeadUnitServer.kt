@@ -799,8 +799,14 @@ class AaHeadUnitServer(
                                     " sensor=" + s.hasSensorSourceService() +
                                     " bt=" + s.hasBluetoothService(),
                             )
+                            if (s.hasMediaSinkService() &&
+                                s.mediaSinkService.videoConfigsCount > 0 &&
+                                s.mediaSinkService.audioType != AudioStreamType.AUDIO_STREAM_TELEPHONY
+                            ) {
+                                onLog("AA: ⚠ 该服务同时带视频和音频，当前实现只开视频通道（audio=" + s.mediaSinkService.audioType + "）")
+                            }
                         }
-                        return response.channelsList.mapNotNull { s ->
+                        val opened = response.channelsList.mapNotNull { s ->
                             when {
                             s.hasMediaSinkService() && s.mediaSinkService.videoConfigsCount > 0 ->
                                 VideoChannel(s, videoListener()).also { video = it }
@@ -857,6 +863,10 @@ class AaHeadUnitServer(
                                 else -> null
                             }
                         }
+                        if (mediaAudio == null) {
+                            onLog("AA: ⚠ 未找到 AUDIO_STREAM_MEDIA 通道；音乐不会发到 AA，车机音量可能只能控制导航")
+                        }
+                        return opened
                     }
 
                     override fun onRunning(session: AapSession) {

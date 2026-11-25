@@ -63,6 +63,7 @@ class CarLifeService : Service() {
     private val binder = LocalBinder()
 
 
+    @Volatile
     private var client: CarLifeHuClient? = null
 
     /** 补边转码管线：CarLife 码流 → AA 标准画布（1412×654 内容画进 1920×1080 中央）。 */
@@ -70,15 +71,20 @@ class CarLifeService : Service() {
     private var transcode: TranscodePipeline? = null
     @Volatile
     private var decoder: CarLifeVideoDecoder? = null
+    @Volatile
     private var audio: CarLifeAudio? = null
 
     /** 是否在本机播放 CarLife 劫持声音（不影响转发给 AA）。 */
     @Volatile
     private var localAudioEnabled = false
 
+    @Volatile
     private var lastMediaRate = 0
+    @Volatile
     private var lastMediaChannels = 2
+    @Volatile
     private var lastTtsRate = 0
+    @Volatile
     private var lastTtsChannels = 1
 
     /** 缓存的 H.264 参数集/关键帧：界面切后台 Surface 重建后，靠它立刻恢复预览。 */
@@ -94,6 +100,12 @@ class CarLifeService : Service() {
     /** 防止并发重复启动会话（探测 7240 在后台线程，可能连点）。 */
     @Volatile
     private var startInProgress = false
+
+    /** 串行化 startSessionInternal / stopSession，防止 stop 后启动线程又建出幽灵会话。 */
+    private val sessionLock = Any()
+    @Volatile
+    private var sessionGeneration = 0
+    private var startThread: Thread? = null
 
     /** USB 状态/配件广播监听：记录系统层面的 USB 重枚举，定位"进设置就断 AA"的元凶。 */
     private var usbReceiver: BroadcastReceiver? = null
@@ -495,21 +507,36 @@ class CarLifeService : Service() {
     }
 
     fun startSession() {
-        if (client?.isRunning() == true || startInProgress) return
-        startInProgress = true
-        // 探测/建流都放后台线程：主线程做 Socket 连接会抛 NetworkOnMainThreadException，
-        // 之前"引擎明明在监听却提示未监听"就是这个原因。
-        Thread({
-            try {
-                if (!isEngineReady()) {
-                    RingLog.add("CARLIFE: 7240 未监听——请先打开荣耀车联 → CarLife → 无线连接 → 正在连接")
-                    return@Thread
+        synchronized(sessionLock) {
+            if (client?.isRunning() == true || startInProgress) return
+            startInProgress = true
+            val generation = ++sessionGeneration
+            // 探测/建流都放后台线程：主线程做 Socket 连接会抛 NetworkOnMainThreadException。
+            val t = Thread({
+                try {
+                    if (!isEngineReady()) {
+                        RingLog.add("CARLIFE: 7240 未监听——请先打开荣耀车联 → CarLife → 无线连接 → 正在连接")
+                        return@Thread
+                    }
+                    synchronized(sessionLock) {
+                        if (generation != sessionGeneration || !startInProgress) {
+                            RingLog.add("CARLIFE: 启动已取消（用户已断开或会话已切换）")
+                            return@Thread
+                        }
+                        startSessionInternal()
+                    }
+                } finally {
+                    synchronized(sessionLock) {
+                        if (generation == sessionGeneration) {
+                            startInProgress = false
+                            startThread = null
+                        }
+                    }
                 }
-                startSessionInternal()
-            } finally {
-                startInProgress = false
-            }
-        }, "carlife-start").apply { isDaemon = true }.start()
+            }, "carlife-start").apply { isDaemon = true }
+            startThread = t
+            t.start()
+        }
     }
 
     private fun startSessionInternal() {
@@ -588,6 +615,10 @@ class CarLifeService : Service() {
             onTtsPcm = { data, length ->
                 if (localAudioEnabled) audio?.onTtsPcm(data, length)
             },
+            onMediaPause = { if (localAudioEnabled) audio?.onMediaPause() },
+            onMediaResume = { if (localAudioEnabled) audio?.onMediaResume() },
+            onMediaStop = { if (localAudioEnabled) audio?.onMediaStop() },
+            onTtsStop = { if (localAudioEnabled) audio?.onTtsStop() },
         )
         client = c
         Thread({
@@ -615,19 +646,25 @@ class CarLifeService : Service() {
     }
 
     fun stopSession(reason: String = "用户主动断开") {
-        resolutionCheckScheduled = false
-        if (client != null || decoder != null || audio != null) {
-            RingLog.add("CARLIFE: 断开会话（$reason）")
+        val wasActive: Boolean
+        synchronized(sessionLock) {
+            sessionGeneration++
+            startInProgress = false
+            startThread?.interrupt()
+            startThread = null
+            resolutionCheckScheduled = false
+            wasActive = client != null || decoder != null || audio != null
+            client?.stop()
+            client = null
+            transcode?.release()
+            transcode = null
+            decoder?.release()
+            decoder = null
+            audio?.release()
+            audio = null
+            releaseWakeLock()
         }
-        client?.stop()
-        client = null
-        transcode?.release()
-        transcode = null
-        decoder?.release()
-        decoder = null
-        audio?.release()
-        audio = null
-        releaseWakeLock()
+        if (wasActive) RingLog.add("CARLIFE: 断开会话（$reason）")
     }
 
     private fun acquireWakeLock() {

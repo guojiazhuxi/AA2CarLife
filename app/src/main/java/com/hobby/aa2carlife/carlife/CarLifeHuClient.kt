@@ -7,6 +7,7 @@ import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -38,6 +39,10 @@ class CarLifeHuClient(
     private val onMediaPcm: (data: ByteArray, length: Int) -> Unit = { _, _ -> },
     private val onTtsFormat: (sampleRate: Int, channels: Int) -> Unit = { _, _ -> },
     private val onTtsPcm: (data: ByteArray, length: Int) -> Unit = { _, _ -> },
+    private val onMediaPause: () -> Unit = {},
+    private val onMediaResume: () -> Unit = {},
+    private val onMediaStop: () -> Unit = {},
+    private val onTtsStop: () -> Unit = {},
 ) {
 
     companion object {
@@ -410,7 +415,10 @@ class CarLifeHuClient(
                         }
 
                         CarLifeProtocol.TTS_PKG_NORMAL -> onTtsPcm(payload, length)
-                        CarLifeProtocol.TTS_PKG_STOP -> RingLog.add("CARLIFE: TTS 停止")
+                        CarLifeProtocol.TTS_PKG_STOP -> {
+                            RingLog.add("CARLIFE: TTS 停止")
+                            onTtsStop()
+                        }
                         else -> RingLog.add("CARLIFE: 未识别 TTS 包 0x%X（${length}B）".format(type))
                     }
                 } else {
@@ -428,9 +436,18 @@ class CarLifeHuClient(
                         }
 
                         CarLifeProtocol.MUSIC_PKG_NORMAL -> onMediaPcm(payload, length)
-                        CarLifeProtocol.MUSIC_PKG_RESUME -> RingLog.add("CARLIFE: 媒体恢复播放")
-                        CarLifeProtocol.MUSIC_PKG_PAUSE -> RingLog.add("CARLIFE: 媒体暂停")
-                        CarLifeProtocol.MUSIC_PKG_STOP -> RingLog.add("CARLIFE: 媒体停止")
+                        CarLifeProtocol.MUSIC_PKG_RESUME -> {
+                            RingLog.add("CARLIFE: 媒体恢复播放")
+                            onMediaResume()
+                        }
+                        CarLifeProtocol.MUSIC_PKG_PAUSE -> {
+                            RingLog.add("CARLIFE: 媒体暂停")
+                            onMediaPause()
+                        }
+                        CarLifeProtocol.MUSIC_PKG_STOP -> {
+                            RingLog.add("CARLIFE: 媒体停止")
+                            onMediaStop()
+                        }
                         else -> RingLog.add("CARLIFE: 未识别媒体包 0x%X（${length}B）".format(type))
                     }
                 }
@@ -524,25 +541,29 @@ class CarLifeHuClient(
         val py = y.coerceIn(0, 65535)
         val ppx = pointerX.coerceIn(0, 65535)
         val ppy = pointerY.coerceIn(0, 65535)
-        touchExecutor.execute {
-            val out = touchOut ?: return@execute
-            val payload = when {
-                serviceType == CarLifeProtocol.TOUCH_ACTION ->
-                    CarLifeProtocol.touchAction(action, px, py)
+        try {
+            touchExecutor.execute {
+                val out = touchOut ?: return@execute
+                val payload = when {
+                    serviceType == CarLifeProtocol.TOUCH_ACTION ->
+                        CarLifeProtocol.touchAction(action, px, py)
 
-                pointerX >= 0 && pointerY >= 0 ->
-                    CarLifeProtocol.touchPointDual(px, py, ppx, ppy)
+                    pointerX >= 0 && pointerY >= 0 ->
+                        CarLifeProtocol.touchPointDual(px, py, ppx, ppy)
 
-                else -> CarLifeProtocol.touchPoint(px, py)
-            }
-            try {
-                synchronized(touchLock) {
-                    out.write(CarLifeProtocol.packCommand(serviceType, payload))
-                    out.flush()
+                    else -> CarLifeProtocol.touchPoint(px, py)
                 }
-            } catch (e: Exception) {
-                RingLog.add("CARLIFE: 触控发送失败 - ${e.message}")
+                try {
+                    synchronized(touchLock) {
+                        out.write(CarLifeProtocol.packCommand(serviceType, payload))
+                        out.flush()
+                    }
+                } catch (e: Exception) {
+                    RingLog.add("CARLIFE: 触控发送失败 - ${e.message}")
+                }
             }
+        } catch (_: RejectedExecutionException) {
+            // 会话正在停止，触摸线程池已关闭：丢弃这笔迟到的触摸，不能让它崩 UI。
         }
     }
 

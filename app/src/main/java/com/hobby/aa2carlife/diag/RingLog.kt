@@ -5,9 +5,9 @@ import android.util.Log
 import java.io.BufferedWriter
 import java.io.File
 import java.io.FileWriter
-import java.text.SimpleDateFormat
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import java.util.ArrayDeque
-import java.util.Date
 import java.util.Locale
 
 /**
@@ -24,7 +24,7 @@ object RingLog {
 
     private val lines = ArrayDeque<String>()
 
-    private val fmt = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
+    private val fmt = DateTimeFormatter.ofPattern("HH:mm:ss.SSS", Locale.US)
 
     @Volatile
     var listener: ((String) -> Unit)? = null
@@ -47,7 +47,7 @@ object RingLog {
     }
 
     fun add(message: String) {
-        val line = "${fmt.format(Date())} $message"
+        val line = "${LocalTime.now().format(fmt)} $message"
         // 1) logcat（开发/联调时我可直接用 adb 读取）
         Log.i(TAG, message)
         // 2) 内存环形缓冲（App 内显示）
