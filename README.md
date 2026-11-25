@@ -7,7 +7,7 @@
 ## 免责声明（先读）
 
 - 本项目与 Google、百度、荣耀、奥迪等公司没有任何关联，未获授权或背书。
-- 仓库不包含任何 AA 身份证书或私钥；AA 证书需使用者自行准备。
+- 仓库包含从 Android Auto 客户端提取的公开 AA 身份材料（见证书章节）；不包含本项目作者的个人私钥。
 - 提取/使用 AA 证书可能违反 Google 服务条款；使用本项目的风险由使用者自行承担。
 - 仅供个人学习、逆向工程研究；请遵守当地法律与设备/车辆保修条款。
 
@@ -55,7 +55,7 @@ CarLife 引擎（荣耀车联等），在两条协议之间转接画面、声音
 
 - Android Studio 或命令行 Gradle；JDK 17+
 - Android SDK **37**（`compileSdk = 37`，`minSdk = 31`，`targetSdk = 37`）
-- 设备：Android 12+ 手机；主要在荣耀 MagicOS 上验证
+- 设备：Android 12+ 手机；实车验证：**荣耀手机 + 奥迪 MIB3 车机**
 
 ```bash
 # 1. 配置 SDK 路径（不要提交这个文件）
@@ -70,7 +70,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 > 如果本机没有 API 37，请自行下调 `app/build.gradle.kts` 里的 compileSdk/targetSdk。
 
-## 证书（必须自己准备，仓库不包含）
+## 证书（AA 身份材料）
 
 AA 手机端需要一对 Google AA 身份文件：
 
@@ -79,9 +79,10 @@ app/src/main/assets/aap/phone_chain.pem   # 证书链（O=CarService）
 app/src/main/assets/aap/phone_key.pem     # 对应私钥
 ```
 
-- 仓库**不提供**这两个文件，`.gitignore` 已忽略。
-- 没有证书时 App 能编译，但 USB AA 会话无法建立（日志会提示加载证书失败）。
-- 请使用你自己合法获得的材料，不要把别人的证书/私钥提交到仓库或公开分享。
+- 仓库包含从 Android Auto 客户端提取的公开 AA 身份材料，方便复现；
+- 这些不是本项目作者的个人证书，而是 AA 客户端内置、可从 APK 中提取的材料；
+- 它们仍受 Google 服务条款约束，仅供个人研究，使用风险自担；
+- 如果不想使用仓库内的材料，可以替换成你自己合法获得的证书；不要混用来源不明的证书。
 
 ## 使用
 

@@ -20,6 +20,10 @@ app/src/main/assets/aap/*.pem
 app/src/main/assets/aap/*.key
 *.pem
 *.key
+
+# AA identity material extracted from the AA client (kept for reproduction)
+!app/src/main/assets/aap/phone_chain.pem
+!app/src/main/assets/aap/phone_key.pem
 *.jks
 *.keystore
 *.p12

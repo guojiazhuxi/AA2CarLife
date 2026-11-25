@@ -60,7 +60,8 @@ app/src/main/assets/aap/phone_chain.pem
 app/src/main/assets/aap/phone_key.pem
 ```
 
-仓库不包含证书；没有证书时 App 能编译，但 AA 会话无法建立。
+仓库包含从 Android Auto 客户端提取的公开 AA 身份材料，方便复现；它们不是本项目作者的个人证书，但仍受 Google 服务条款约束。
+如不想使用仓库内材料，可替换成自己合法获得的证书。没有证书时 App 能编译，但 AA 会话无法建立。
 无线 AA 由 aap/ 的 WPP/Wi-Fi 路径支持，当前主要在 USB 台架验证。
 
 ### 4.2 服务发现
@@ -231,7 +232,7 @@ AA2CarLife              ← 左上角软件名
 
 - Android Studio 或命令行 Gradle，JDK 17+；
 - Android SDK 37，minSdk=31，targetSdk=37；
-- 主要验证设备：荣耀 MagicOS。
+- 实车测试设备：**荣耀手机 + 奥迪 MIB3 车机**；主要验证系统：荣耀 MagicOS。
 
 ```bash
 echo 'sdk.dir=/path/to/Android/Sdk' > local.properties
@@ -263,7 +264,7 @@ adb shell run-as com.hobby.aa2carlife cat files/aa2cl.log
 - 转码时间戳尚未传递 CarLife PTS。
 - 默认 1920×1080 画布 / 1412×654 安全区，其他车机需要改。
 - 本地预览与 AA 转码是两条解码路径，关闭预览只省本地这一路。
-- 项目不提供 AA 证书/私钥，也不能绕过 Google 的授权要求。
+- 仓库内 AA 身份材料来自 AA 客户端公开提取，仍受 Google 服务条款约束，不能绕过 Google 的授权要求。
 
 ## 14. 许可与来源
 

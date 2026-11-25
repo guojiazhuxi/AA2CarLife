@@ -46,6 +46,12 @@ SOFTWARE.
 
 MIT 许可允许复制、修改、再分发，但**不授予**其实现的第三方协议（百度 CarLife）相关权利。
 
+## AA 身份材料
+
+- `app/src/main/assets/aap/phone_chain.pem`、`phone_key.pem` 来自 Android Auto 客户端，
+  属于可从 APK 中公开提取的身份材料；不是本项目作者的个人证书。
+- 它们仍受 Google 服务条款约束，仅供个人研究；如不想使用，可替换成自己合法获得的证书。
+
 ## 声明
 
 - 本项目与 Google、百度、荣耀、奥迪均无关联，未获授权或背书；
