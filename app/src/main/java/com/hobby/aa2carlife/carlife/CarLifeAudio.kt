@@ -156,7 +156,10 @@ class CarLifeAudio(
             val channelMask =
                 if (channels == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO
             val minBuffer = AudioTrack.getMinBufferSize(rate, channelMask, AudioFormat.ENCODING_PCM_16BIT)
-            val bufferSize = (minBuffer.coerceAtLeast(rate / 2 * channels * 2) * 2)
+            // 低延迟：只留约 20ms 的 PCM，不再用 0.5~1 秒的大缓冲。
+            val pcmBytesPerSec = rate * channels * 2
+            val target = (pcmBytesPerSec / 50).coerceAtLeast(1024)
+            val bufferSize = if (minBuffer > 0) minBuffer.coerceAtLeast(target) else target
             val attributes = AudioAttributes.Builder()
                 .setUsage(usage)
                 .setContentType(contentType)
@@ -171,10 +174,11 @@ class CarLifeAudio(
                 .setAudioFormat(format)
                 .setBufferSizeInBytes(bufferSize)
                 .setTransferMode(AudioTrack.MODE_STREAM)
+                .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
                 .build()
                 .also {
                     val state = it.state
-                    RingLog.add("AUDIO: AudioTrack 状态=$state 采样率=$rate 声道=$channels 缓冲=$bufferSize")
+                    RingLog.add("AUDIO: AudioTrack 状态=$state 采样率=$rate 声道=$channels 低延迟缓冲=$bufferSize")
                     preferBuiltinSpeaker(it)
                     it.play()
                 }
