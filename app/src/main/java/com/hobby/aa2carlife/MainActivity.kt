@@ -400,9 +400,14 @@ class MainActivity : Activity() {
             surfaceView.rotate90 = checked
             RingLog.add("VIDEO: 预览旋转90° " + (if (checked) "开启" else "关闭") + "（TextureView 变换，不重建解码器）")
         }
-        tapSendSingleClick = chkTapSingleClick.isChecked
+        // 单击补发：默认关闭（CPTCL 只需要 DOWN/UP），并持久化，避免重启后自己勾回来
+        val touchPrefs = getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
+        val savedSingleClick = touchPrefs.getBoolean("tap_send_single_click", false)
+        tapSendSingleClick = savedSingleClick
+        chkTapSingleClick.isChecked = savedSingleClick
         chkTapSingleClick.setOnCheckedChangeListener { _, checked ->
             tapSendSingleClick = checked
+            touchPrefs.edit().putBoolean("tap_send_single_click", checked).apply()
             RingLog.add("TOUCH: 点按补发 SINGLE_CLICK ${if (checked) "开启" else "关闭"}")
         }
 
