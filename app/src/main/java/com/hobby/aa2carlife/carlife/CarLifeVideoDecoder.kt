@@ -40,10 +40,19 @@ class CarLifeVideoDecoder(
     var rotationApplied = false
         private set
 
+    /** 配置/解码失败后停止重试，避免每帧重建成死循环。 */
+    @Volatile
+    private var failed = false
+
+    /** KEY_ROTATION 降级为普通解码时通知（调用方把 View 比例改回横屏）。 */
+    @Volatile
+    var onRotationFallback: (() -> Unit)? = null
+
     private var waitingSpsLogged = false
 
     @Synchronized
     fun submit(frame: ByteArray, ptsUs: Long) {
+        if (failed) return
         try {
             if (codec == null && !configure(frame)) return
             val c = codec ?: return
@@ -56,8 +65,16 @@ class CarLifeVideoDecoder(
             }
             drain(c)
         } catch (e: Exception) {
-            RingLog.add("VIDEO: 解码异常 - ${e.message}")
+            logException("解码异常", e)
+            failed = true
+            runCatching { codec?.release() }
+            codec = null
         }
+    }
+
+    private fun logException(what: String, e: Exception) {
+        val msg = e.message?.takeIf { it.isNotBlank() } ?: "(无 message)"
+        RingLog.add("VIDEO: $what - ${e.javaClass.simpleName}: $msg")
     }
 
     private fun configure(frame: ByteArray): Boolean {
@@ -81,17 +98,26 @@ class CarLifeVideoDecoder(
             rotationApplied = rotate90
         } catch (e: Exception) {
             if (rotate90) {
-                RingLog.add("VIDEO: KEY_ROTATION 不被该编解码器支持，降级为不旋转 - ${e.message}")
+                logException("KEY_ROTATION 配置失败，尝试普通解码", e)
                 runCatching { c.release() }
                 val plain = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, 1280, 720)
                 plain.setByteBuffer("csd-0", ByteBuffer.wrap(sps))
                 plain.setByteBuffer("csd-1", ByteBuffer.wrap(pps))
                 val c2 = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
-                c2.configure(plain, surface, null, 0)
-                c2.start()
+                try {
+                    c2.configure(plain, surface, null, 0)
+                    c2.start()
+                } catch (e2: Exception) {
+                    logException("普通解码也失败，停止重试（避免死循环）", e2)
+                    runCatching { c2.release() }
+                    failed = true
+                    onRotationFallback?.invoke()
+                    return false
+                }
                 codec = c2
                 rotationApplied = false
-                RingLog.add("VIDEO: 找到 SPS(${sps.size}B)/PPS(${pps.size}B)，初始化解码器")
+                RingLog.add("VIDEO: 找到 SPS(${sps.size}B)/PPS(${pps.size}B)，初始化解码器（未旋转）")
+                onRotationFallback?.invoke()
                 return true
             }
             throw e

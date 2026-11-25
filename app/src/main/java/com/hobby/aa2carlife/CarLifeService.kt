@@ -100,6 +100,14 @@ class CarLifeService : Service() {
     @Volatile
     var onResolutionMismatch: ((String) -> Unit)? = null
 
+    /** KEY_ROTATION 不支持、预览被迫退回横屏时通知 UI。 */
+    @Volatile
+    var onPreviewRotationFallback: (() -> Unit)? = null
+
+    /** 原始 CarLife 码流的 SPS/PPS 与关键帧（预览解码器重建时用，避免喂错成转码后的 1920x1088）。 */
+    private var lastRawCodecConfig: ByteArray? = null
+    private var lastRawKeyFrame: ByteArray? = null
+
     /** 每次会话只检查一次实际码流分辨率。 */
     private var resolutionCheckScheduled = false
 
@@ -462,12 +470,13 @@ class CarLifeService : Service() {
             // 并把缓存的 SPS/PPS + 关键帧喂进去，避免"回来黑屏等下一个关键帧"。
             if (client?.isRunning() == true) {
                 decoder?.release()
-                val d = CarLifeVideoDecoder(s, rotate90, lastCodecConfig)
+                val d = CarLifeVideoDecoder(s, rotate90, lastRawCodecConfig)
+                d.onRotationFallback = { onPreviewRotationFallback?.invoke() }
                 decoder = d
-                lastKeyFrame?.let { runCatching { d.submit(it, 0) } }
+                lastRawKeyFrame?.let { runCatching { d.submit(it, 0) } }
                 RingLog.add(
-                    "VIDEO: 预览解码器已重建（缓存参数集=${lastCodecConfig != null}，" +
-                        "回放关键帧=${lastKeyFrame != null}）",
+                    "VIDEO: 预览解码器已重建（原始参数集=${lastRawCodecConfig != null}，" +
+                        "回放原始关键帧=${lastRawKeyFrame != null}）",
                 )
             }
         }
@@ -510,7 +519,13 @@ class CarLifeService : Service() {
         acquireWakeLock()
         lastCodecConfig = null
         lastKeyFrame = null
-        decoder = surface?.let { CarLifeVideoDecoder(it, rotate90) }
+        lastRawCodecConfig = null
+        lastRawKeyFrame = null
+        decoder = surface?.let { s ->
+            CarLifeVideoDecoder(s, rotate90).also { d ->
+                d.onRotationFallback = { onPreviewRotationFallback?.invoke() }
+            }
+        }
         val audioSink = CarLifeAudio(getSystemService(AudioManager::class.java))
         audioSink.logOutputDevices()
         audio = audioSink
@@ -543,6 +558,12 @@ class CarLifeService : Service() {
                 val tx = transcode
                 if (tx != null) {
                     // 预览用原始 CarLife 帧（1412x654），这样预览不会被转码画布的黑边二次 letterbox。
+                    AaAnnexB.extractCodecConfig(frame)?.let {
+                        lastRawCodecConfig = it
+                        lastRawKeyFrame = frame
+                    } ?: run {
+                        if (lastRawKeyFrame == null || AaAnnexB.isKeyFrame(frame)) lastRawKeyFrame = frame
+                    }
                     decoder?.submit(frame, ptsUs)
                     // AA 侧仍走补边转码：原始帧→画进安全区→重编码后由 handleTranscodedFrame 出去。
                     tx.submit(frame)
@@ -569,6 +590,23 @@ class CarLifeService : Service() {
                 RingLog.add("M1: CarLife 连接失败——请确认荣耀车联停在「正在连接」界面")
             }
         }, "carlife-session").apply { isDaemon = true }.start()
+    }
+
+    /** 运行时切换预览旋转：延迟重建预览解码器，避开 Surface 尺寸变化竞态。 */
+    fun setPreviewRotation(enabled: Boolean) {
+        if (rotate90 == enabled) return
+        rotate90 = enabled
+        val s = surface ?: return
+        decoder?.release()
+        decoder = null
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            val cur = surface ?: return@postDelayed
+            val d = CarLifeVideoDecoder(cur, enabled, lastRawCodecConfig)
+            d.onRotationFallback = { onPreviewRotationFallback?.invoke() }
+            decoder = d
+            lastRawKeyFrame?.let { runCatching { d.submit(it, 0) } }
+            RingLog.add("VIDEO: 预览旋转 " + (if (enabled) "开启" else "关闭") + "（延迟重建预览解码器）")
+        }, 350L)
     }
 
     /** 会话稳定后对比 CarLife 实际码流尺寸与车机安全区；不一致提示重连一次。 */
