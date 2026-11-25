@@ -115,6 +115,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:checked="false"
+                android:saveEnabled="false"
                 android:text="@string/chk_rotate90"
                 android:textSize="12sp" />
 
@@ -126,12 +127,6 @@
                 android:text="@string/chk_tap_single_click"
                 android:textSize="12sp" />
 
-            <CheckBox
-                android:id="@+id/chk_pinch_translate"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/chk_pinch_translate"
-                android:textSize="12sp" />
         </LinearLayout>
         <CheckBox
             android:id="@+id/chk_test_pattern"
@@ -185,12 +180,6 @@
                 android:text="@string/chk_new_touch"
                 android:textSize="12sp" />
 
-            <CheckBox
-                android:id="@+id/chk_all_composite"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/chk_all_composite"
-                android:textSize="12sp" />
 
             <CheckBox
                 android:id="@+id/chk_move_index"

@@ -58,6 +58,15 @@ import kotlin.concurrent.thread
 /** AA TouchEvent 里的一个触点（坐标是 AA 安全区坐标）。 */
 data class AaTouchPoint(val id: Int, val x: Int, val y: Int)
 
+/** 车机显示档案：AA 视频配置 + margin 推导出的安全区。 */
+data class AaDisplayProfile(
+    val width: Int,
+    val height: Int,
+    val safeWidth: Int,
+    val safeHeight: Int,
+    val dpi: Int,
+)
+
 class AaHeadUnitServer(
     private val assets: AssetManager,
     private val port: Int = 5277,
@@ -928,6 +937,14 @@ class AaHeadUnitServer(
 
     fun isAccessoryAttached(): Boolean = accessoryAttached
 
+    /** 上次记住的车机显示档案（由 App 侧持久化，服务器不依赖 Android Context）。 */
+    @Volatile
+    var loadDisplayProfile: (() -> AaDisplayProfile?)? = null
+
+    /** 记住本次车机显示档案（App 侧写盘，值未变时可忽略）。 */
+    @Volatile
+    var saveDisplayProfile: ((AaDisplayProfile) -> Unit)? = null
+
     private fun videoListener(): VideoChannel.Listener = object : VideoChannel.Listener {
         override fun chooseConfiguration(configs: List<VideoConfiguration>, preferred: List<Int>): Int {
             configs.forEachIndexed { i, c ->
@@ -943,11 +960,25 @@ class AaHeadUnitServer(
             // 2) CarLife 未跑：优先 1280x720 —— CarLife 的 1080p 实际编码为 1920x1088（多 8 行），
             //    与车机 1920x1080 配置不一致会被车机拒绝（实测几秒内 EIO）；720 正好 16 对齐。
             val current = runCatching { currentStreamSizeProvider?.invoke() }.getOrNull()
+            val learned = runCatching { loadDisplayProfile?.invoke() }.getOrNull()
             var index = if (current != null) configs.indices.firstOrNull { sizes[it] == current } ?: -1 else -1
+            // 2) 用上次记住的车机分辨率：本次配置列表里能对上就直接复用（和 CarPToCarL 的
+            //    CarCanvasMemory 同一思路；首次连一台新车只能自动选，第二次起才能命中）。
+            var learnedHit = false
+            if (index < 0 && learned != null) {
+                index = configs.indices.firstOrNull { sizes[it] == (learned.width to learned.height) } ?: -1
+                learnedHit = index >= 0
+                if (learnedHit) {
+                    onLog("AA: 命中已记住的车机分辨率 ${learned.width}x${learned.height}（安全区 ${learned.safeWidth}x${learned.safeHeight}）")
+                }
+            }
             if (index < 0) index = configs.indices.firstOrNull { sizes[it] == (1920 to 1080) } ?: -1
             if (index < 0) index = configs.indices.firstOrNull { sizes[it] == (1280 to 720) } ?: -1
             if (index < 0) index = configs.indices.firstOrNull { sizes[it] == (800 to 480) } ?: -1
             if (index < 0) index = preferred.firstOrNull() ?: 0
+            if (!learnedHit && learned != null) {
+                onLog("AA: 上次记住的 ${learned.width}x${learned.height} 不在本次配置列表，重新学习")
+            }
             index = index.coerceIn(0, configs.size - 1)
             val (w, h) = sizes[index]
             val chosen = configs[index]
@@ -961,6 +992,8 @@ class AaHeadUnitServer(
                 "AA: 选择视频配置 $index: ${configs[index].codecResolution}（$w x $h，" +
                     if (current != null) "匹配当前 CarLife ${current.first}x${current.second}）" else "CarLife 未启动，按车机优先）",
             )
+            val profile = AaDisplayProfile(w, h, safeW, safeH, chosen.density)
+            runCatching { saveDisplayProfile?.invoke(profile) }
             onVideoConfigSelected?.invoke(w, h)
             return index
         }

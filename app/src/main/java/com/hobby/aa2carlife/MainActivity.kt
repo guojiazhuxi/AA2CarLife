@@ -29,6 +29,7 @@ import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import com.hobby.aa2carlife.carlife.CarLifeProtocol
+import com.hobby.aa2carlife.aa.AaDisplayProfile
 import com.hobby.aa2carlife.aa.AaHeadUnitServer
 import com.hobby.aa2carlife.aa.AaTouchPoint
 import com.hobby.aa2carlife.aa.PlaceholderVideo
@@ -130,9 +131,7 @@ class MainActivity : Activity() {
     private lateinit var statusText: TextView
     private lateinit var logText: TextView
     private lateinit var logScroll: ScrollView
-    private lateinit var chkAllComposite: CheckBox
     private lateinit var chkMoveIndex: CheckBox
-    private lateinit var chkPinchTranslate: CheckBox
     private lateinit var chkCptclPipeline: CheckBox
     private lateinit var chkNewTouch: CheckBox
     private lateinit var chkRotate90: CheckBox
@@ -196,6 +195,7 @@ class MainActivity : Activity() {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             val local = binder as? CarLifeService.LocalBinder ?: return
             service = local.service()
+            surfaceView.setVideoSize(service?.previewWidth ?: 1412, service?.previewHeight ?: 654)
             service?.rotate90 = chkRotate90.isChecked
             // M3：把 CarLife 视频/音频转给 AA 手机端（只在台架连接时有用）
             service?.aaVideoSink = { frame -> aaServer?.sendVideoFrame(frame) }
@@ -227,9 +227,7 @@ class MainActivity : Activity() {
         statusText = findViewById(R.id.status_text)
         logText = findViewById(R.id.log_text)
         logScroll = findViewById(R.id.log_scroll)
-        chkAllComposite = findViewById(R.id.chk_all_composite)
         chkMoveIndex = findViewById(R.id.chk_move_index)
-        chkPinchTranslate = findViewById(R.id.chk_pinch_translate)
         chkCptclPipeline = findViewById(R.id.chk_cptcl_pipeline)
         chkNewTouch = findViewById(R.id.chk_new_touch)
         chkRotate90 = findViewById(R.id.chk_rotate90)
@@ -276,6 +274,9 @@ class MainActivity : Activity() {
             touch = { action, x, y, id -> handleAaTouch(action, x, y, id) },
             multiTouch = { points -> handleAaMultiTouch(points) },
         )
+        // 车机分辨率记忆：首次学习，之后配置列表能对上就复用（同 CarPToCarL CarCanvasMemory）
+        aaServer?.loadDisplayProfile = { loadDisplayProfile() }
+        aaServer?.saveDisplayProfile = { profile -> saveDisplayProfile(profile) }
         // 后台生成一帧 1280x720 占位画面：AA 连上但 CarLife 还没出帧时，先发给车机避免黑屏超时
         if (aaServer?.hasPlaceholder() != true) {
             generatePlaceholder(aaServer)
@@ -356,17 +357,9 @@ class MainActivity : Activity() {
                 server.start()
             }
         }
-        chkAllComposite.setOnCheckedChangeListener { _, checked ->
-            allComposite = checked
-            RingLog.add("TOUCH: 双指模式切换为 ${if (checked) "B（整笔复合动作）" else "A（单点+中途切复合）"}")
-        }
         chkMoveIndex.setOnCheckedChangeListener { _, checked ->
             moveWithIndex = checked
             RingLog.add("TOUCH: 复合动作 MOVE ${if (checked) "带指针索引" else "不带索引"}")
-        }
-        chkPinchTranslate.setOnCheckedChangeListener { _, checked ->
-            pinchTranslate = checked
-            RingLog.add("TOUCH: 捏合兼容模式（翻译成双击拖动缩放）${if (checked) "开启" else "关闭"}")
         }
         chkCptclPipeline.setOnCheckedChangeListener { _, checked ->
             cptclPipeline = checked
@@ -381,11 +374,14 @@ class MainActivity : Activity() {
             RingLog.add("TOUCH: 新触摸模式（0x68001 动作透传）${if (checked) "开启" else "关闭"}")
         }
         cptclPipeline = chkCptclPipeline.isChecked
-        pinchTranslate = chkPinchTranslate.isChecked
-        // 旋转 90° 显示（解码器 KEY_ROTATION + SurfaceView 9:16 最大填充）
-        surfaceView.rotate90 = chkRotate90.isChecked
-        service?.rotate90 = chkRotate90.isChecked
+        // 预览固定横屏（实际 2.16:1），启动时强制不旋转；复选框只影响本次会话
+        val previewPrefs = getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
+        previewPrefs.edit().putBoolean("preview_rotate90", false).apply()
+        chkRotate90.isChecked = false
+        surfaceView.rotate90 = false
+        service?.rotate90 = false
         chkRotate90.setOnCheckedChangeListener { _, checked ->
+            previewPrefs.edit().putBoolean("preview_rotate90", checked).apply()
             surfaceView.rotate90 = checked
             service?.rotate90 = checked
             RingLog.add("VIDEO: 显示旋转 90° ${if (checked) "开启" else "关闭"}（下次启动会话生效）")
@@ -662,9 +658,52 @@ class MainActivity : Activity() {
         )
     }
 
+    /** 读取上次学习到的车机显示档案（AA 视频配置 + 安全区）。 */
+    private fun loadDisplayProfile(): AaDisplayProfile? {
+        val sp = getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
+        val w = sp.getInt("car_display_w", 0)
+        val h = sp.getInt("car_display_h", 0)
+        val sw = sp.getInt("car_safe_w", 0)
+        val sh = sp.getInt("car_safe_h", 0)
+        val dpi = sp.getInt("car_display_dpi", 0)
+        if (w !in 320..4096 || h !in 180..2304) return null
+        if (sw !in 1..w || sh !in 1..h) return null
+        return AaDisplayProfile(w, h, sw, sh, dpi)
+    }
+
+    /** 记住本次车机显示档案；值没变不重复写盘。 */
+    private fun saveDisplayProfile(profile: AaDisplayProfile) {
+        if (profile.width !in 320..4096 || profile.height !in 180..2304) return
+        val sp = getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
+        val same = sp.getInt("car_display_w", 0) == profile.width &&
+            sp.getInt("car_display_h", 0) == profile.height &&
+            sp.getInt("car_safe_w", 0) == profile.safeWidth &&
+            sp.getInt("car_safe_h", 0) == profile.safeHeight
+        if (same) return
+        sp.edit()
+            .putInt("car_display_w", profile.width)
+            .putInt("car_display_h", profile.height)
+            .putInt("car_safe_w", profile.safeWidth)
+            .putInt("car_safe_h", profile.safeHeight)
+            .putInt("car_display_dpi", profile.dpi)
+            .apply()
+        RingLog.add("AA: 已记住车机分辨率 ${profile.width}x${profile.height}（安全区 ${profile.safeWidth}x${profile.safeHeight}）")
+    }
+
+    /** 预览按实际码流比例重排（CarLife 1412x654 ≈ 2.16:1）。 */
+    private fun updatePreviewAspect() {
+        val svc = service ?: return
+        surfaceView.setVideoSize(svc.previewWidth, svc.previewHeight)
+    }
+
     /** 从日志事件更新独立状态位，再组合出用户可读的状态（CarLife 与 AA/车机互不覆盖）。 */
     private fun updateStatusFromLog(line: String) {
         if (line.contains("记录编码参数")) maybeRegeneratePlaceholder()
+        if (line.contains("★ 首帧") || line.contains("TRANSCODE: 源码流") ||
+            line.contains("请求引擎按车机比例编码") || line.contains("视频请求分辨率")
+        ) {
+            updatePreviewAspect()
+        }
         var changed = true
         when {
             line.contains("USB: accessory 已断开") -> {

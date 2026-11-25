@@ -299,6 +299,13 @@ class CarLifeService : Service() {
                 videoSizeFromMemory = true
                 RingLog.add("CARLIFE: 采用上次 AA 车机分辨率 ${w}x$h（连上当前车机后会被纠正）")
             }
+            // 车机安全区记忆：CarLife 先启动、AA 还没连时，也能先按上次的尺寸申请编码器。
+            val sw = sp.getInt("car_safe_w", 0)
+            val sh = sp.getInt("car_safe_h", 0)
+            if (sw in 320..4096 && sh in 180..2304) {
+                carSafeArea = intArrayOf(sw, sh, 0, 0)
+                RingLog.add("CARLIFE: 采用上次车机安全区 ${sw}x$sh（AA 连上后会再校准）")
+            }
         }
     }
 
@@ -630,6 +637,17 @@ class CarLifeService : Service() {
      * 触摸映射基准：CarLife 引擎画布尺寸（协商值优先，1280×720）。
      * 显示是否旋转不影响这里——回传给引擎的始终是未旋转画布坐标。
      */
+    /** 预览用实际码流尺寸：解码器 SPS 优先，其次安全区，最后 1412x654。 */
+    val previewWidth: Int
+        get() = decoder?.width?.takeIf { it > 0 }
+            ?: carSafeArea?.getOrNull(0)?.takeIf { it > 0 }
+            ?: 1412
+
+    val previewHeight: Int
+        get() = decoder?.height?.takeIf { it > 0 }
+            ?: carSafeArea?.getOrNull(1)?.takeIf { it > 0 }
+            ?: 654
+
     val touchWidth: Int
         get() = client?.touchWidth?.takeIf { it > 0 }
             ?: decoder?.width?.takeIf { it > 0 }
