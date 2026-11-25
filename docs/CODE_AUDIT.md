@@ -1,6 +1,6 @@
 # AA2CarLife 代码审计报告
 
-> 快照：`main @ 6cd6ccc`（2026-11-26）。审计阶段未改业务代码；P1 修复记录见第 8 节。
+> 快照：`main @ 6cd6ccc`（2026-11-26）。审计阶段未改业务代码；P1 修复记录见第 8 节，清理阶段见第 9 节。
 
 ## 1. 审计范围与方法
 
@@ -147,3 +147,30 @@
 - 本报告是快照；行号以当前 `main` 为准。
 - `aap/` 是 vendored AARE，生成 protobuf 和框架代码不按死代码处理；只记录 TrustAll 等集成风险。
 - 本次未改业务代码，避免审计和修复混在一起。
+## 9. 清理阶段记录
+
+清理提交：`11257dd`。
+
+- 删除 MainActivity 的新触摸、捏合翻译、模式B、MOVE 索引、单击补发、手动分辨率、无用 statusText 等死代码/死分支。
+- 删除 Compose 插件、Compose BOM/material3/ui/tooling/activity-compose/lifecycle 依赖，以及 `ui/theme` 三个模板文件；App 只保留 View/XML。
+- 删除 24 个未使用资源（15 string、7 color、backup_rules、旧 data_extraction_rules）；重新加入被 Manifest 引用的 dataExtractionRules。
+- 布局硬编码文案移入 strings.xml；日志/提示字号提升到 11sp；补充无障碍点击和 NestedScrolling 抑制说明。
+- 增加 `CarLifeProtocolTest`（4 个测试）和 GitHub Actions `Android CI`（assemble + unit test + lint）。
+
+验证结果：
+
+- `:app:assembleDebug` 成功；
+- `:app:testDebugUnitTest`：4/4 通过；
+- `:app:lintDebug`：**0 errors / 9 warnings**；
+- APK 体积从约 **34.1MB → 8.0MB**（Compose 依赖移除后）；
+- 已安装并在手机上启动（2026-11-26 01:21:39），UI 正常。
+
+剩余 9 条 Lint warning 属于有意保留或上游 AARE：
+
+- `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` 的 Play 政策提醒（个人项目需要后台保持会话）；
+- 固定竖屏（车机投屏界面按竖屏设计）；
+- AARE 的 `AcceptAll` X509TrustManager（vendored，未配置 pinning）；
+- Wakelock 无 timeout；
+- AGP/Kotlin 有更新版本。
+
+仍未处理的功能/安全项：AudioTrack 部分写入重试、报文长度上限、AA 音频通道选择（需服务发现日志）、TLS pinning、Wakelock 超时。
