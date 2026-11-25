@@ -1,6 +1,14 @@
-# NOTICE
+# NOTICE / 第三方许可
 
-本目录（`aa2carlife/`）是个人自用研究项目，包含对以下开源项目的移植/参考：
+本仓库整体以 **GPL-3.0** 发布，详见根目录 [LICENSE](LICENSE)。
+本仓库包含或参考了以下开源项目：
+
+## AARE
+
+- 项目：https://github.com/prototux/AARE
+- 许可：**GPL-3.0-or-later**
+- 使用范围：`aap/` 目录（AAP 协议栈、生成的 protobuf 类）。
+- 许可全文：`aap/LICENSE-GPL-3.0.txt`；根目录 `LICENSE` 为 GPL-3.0。
 
 ## CarPToCarL
 
@@ -8,16 +16,35 @@
 - 许可：**MIT License**，Copyright (c) 2026 lizhihua
 - 使用范围：`app/src/main/java/com/hobby/aa2carlife/carlife/CarLifeProtocol.kt` 的常量、
   帧编解码、protobuf 手写编码、HU_INFO/featureConfig/videoEncoderInfo/触控/模块状态解析等，
-  移植并裁剪自该项目的 `app/src/main/java/io/github/shaonialife/carptocar/carlife/CarLifeProtocol.kt`；
-  握手时序与坑位结论来自其 `docs/carlife-hijack-findings.md` 与 `CarLifeHuClient.kt`。
-- MIT 许可允许复制、修改、再分发，但**不授予**其实现的第三方协议（百度 CarLife）相关权利。
+  移植并裁剪自该项目的 `CarLifeProtocol.kt`；握手时序与坑位结论参考其文档与 `CarLifeHuClient.kt`。
 
-MIT 许可全文见：refs/CarPToCarL/LICENSE（仓库内 `refs/` 目录）。
+MIT 许可全文：
 
-## 后续可能引入
+```text
+MIT License
 
-- AARE（https://github.com/prototux/AARE，**GPL-3.0-or-later**）：M2 起 vendor 其 `aap/` 协议模块。
-  一旦引入，本仓库整体按 GPL-3.0 发布，并保留其版权声明与 `aap/src/main/proto/NOTICE.md`。
+Copyright (c) 2026 lizhihua
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+MIT 许可允许复制、修改、再分发，但**不授予**其实现的第三方协议（百度 CarLife）相关权利。
 
 ## 声明
 
