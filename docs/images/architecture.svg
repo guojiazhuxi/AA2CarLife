@@ -27,22 +27,20 @@
 
 
   <!-- Car -->
-  <rect x="560" y="132" width="480" height="96" rx="18" fill="#0F172A" filter="url(#shadow)"/>
-  <rect x="560" y="132" width="8" height="96" rx="4" fill="#38BDF8"/>
-  <text x="590" y="170" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">奥迪 MIB3 车机</text>
-  <text x="590" y="199" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="14" fill="#CBD5E1">AA Head Unit · 画面显示 + 触摸输入</text>
-  <text x="1000" y="170" text-anchor="end" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="12" fill="#94A3B8">USB</text>
+  <rect x="100" y="132" width="420" height="96" rx="18" fill="#0F172A" filter="url(#shadow)"/>
+  <rect x="100" y="132" width="8" height="96" rx="4" fill="#38BDF8"/>
+  <text x="130" y="170" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="22" font-weight="700" fill="#FFFFFF">奥迪 MIB3 车机</text>
+  <text x="130" y="199" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="14" fill="#CBD5E1">AA Head Unit · 画面显示 + 触摸输入</text>
 
-  <path d="M 800 228 L 800 282" stroke="#334155" stroke-width="3" marker-start="url(#arrowDark)" marker-end="url(#arrowDark)"/>
-  <rect x="820" y="240" width="190" height="28" rx="14" fill="#F1F5F9" stroke="#E2E8F0"/>
-  <text x="915" y="259" text-anchor="middle" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="12" fill="#475569">USB Accessory / AAP TLS</text>
+  <rect x="330" y="240" width="190" height="28" rx="14" fill="#F1F5F9" stroke="#E2E8F0"/>
+  <text x="425" y="259" text-anchor="middle" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="12" fill="#475569">USB Accessory / AAP TLS</text>
 
   <!-- Phone boundary -->
   <rect x="60" y="292" width="1480" height="500" rx="28" fill="#FFFFFF" stroke="#DCE3EE" filter="url(#shadow)"/>
   <rect x="60" y="292" width="1480" height="58" rx="28" fill="#F8FAFC"/>
   <rect x="60" y="322" width="1480" height="28" fill="#F8FAFC"/>
   <text x="90" y="328" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="18" font-weight="700" fill="#0F172A">荣耀手机 · MagicOS</text>
-  <text x="300" y="328" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="14" fill="#64748B">AA2CarLife（本 App）</text>
+  <text x="520" y="328" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="14" fill="#64748B">AA2CarLife（本 App）</text>
   <rect x="1380" y="307" width="132" height="28" rx="14" fill="#E0F2FE"/>
   <text x="1446" y="326" text-anchor="middle" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="12" font-weight="600" fill="#0369A1">仅 USB 有线</text>
 
@@ -102,6 +100,9 @@
   <text x="1180" y="677" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="12" fill="#64748B">触摸控制帧</text>
   <text x="1102" y="708" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="11" fill="#94A3B8">98386 特征配置 · 98311 编码初始化</text>
 
+  <!-- Audi -> AA 手机端：画在外框之后，避免被白底盖住 -->
+  <path d="M 310 228 L 310 368" stroke="#334155" stroke-width="3" marker-start="url(#arrowDark)" marker-end="url(#arrowDark)"/>
+
   <!-- Horizontal arrows -->
   <circle cx="520" cy="558" r="15" fill="#FFFFFF" stroke="#93C5FD" stroke-width="2"/>
   <text x="520" y="564" text-anchor="middle" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="15" fill="#2563EB">⇄</text>
@@ -109,14 +110,14 @@
   <text x="1050" y="564" text-anchor="middle" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="15" fill="#EA580C">⇄</text>
 
   <!-- Engine -->
-  <path d="M 1180 764 L 1180 828" stroke="#EA580C" stroke-width="3" marker-start="url(#arrowOrange)" marker-end="url(#arrowOrange)"/>
-  <rect x="1050" y="838" width="260" height="26" rx="13" fill="#FFEDD5"/>
-  <text x="1180" y="856" text-anchor="middle" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="12" fill="#9A3412">TCP localhost</text>
-  <rect x="480" y="874" width="760" height="94" rx="18" fill="#FFF7ED" stroke="#FED7AA" filter="url(#shadow)"/>
-  <rect x="480" y="874" width="8" height="94" rx="4" fill="#EA580C"/>
-  <text x="510" y="908" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="20" font-weight="700" fill="#7C2D12">本机 CarLife 引擎</text>
-  <text x="510" y="935" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="13" fill="#9A3412">荣耀车联 / CarLife+ · 127.0.0.1 · 仅限本机回环</text>
-  <text x="1210" y="926" text-anchor="end" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="12" fill="#C2410C">CarLife 协议 3.0</text>
+  <path d="M 1280 764 L 1280 864" stroke="#EA580C" stroke-width="3" marker-start="url(#arrowOrange)" marker-end="url(#arrowOrange)"/>
+  <rect x="1150" y="800" width="260" height="26" rx="13" fill="#FFEDD5"/>
+  <text x="1280" y="818" text-anchor="middle" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="12" fill="#9A3412">TCP localhost</text>
+  <rect x="1060" y="874" width="440" height="94" rx="18" fill="#FFF7ED" stroke="#FED7AA" filter="url(#shadow)"/>
+  <rect x="1060" y="874" width="8" height="94" rx="4" fill="#EA580C"/>
+  <text x="1090" y="908" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="20" font-weight="700" fill="#7C2D12">本机 CarLife 引擎</text>
+  <text x="1090" y="935" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="13" fill="#9A3412">荣耀车联 / CarLife+ · 127.0.0.1</text>
+  <text x="1480" y="935" text-anchor="end" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="12" fill="#C2410C">协议 3.0</text>
 
   <text x="60" y="1020" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="12" fill="#94A3B8">数据流：车机 AA → App 桥接 → 本机 CarLife 引擎　|　蓝色：AA 接入　绿色：桥接与转码　橙色：CarLife 协议</text>
   <text x="1540" y="1020" text-anchor="end" font-family="Microsoft YaHei, Noto Sans SC, PingFang SC, sans-serif" font-size="12" fill="#94A3B8">AA2CarLife · 2026-11</text>
