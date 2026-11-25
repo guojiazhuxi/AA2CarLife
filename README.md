@@ -133,4 +133,4 @@ adb shell run-as com.hobby.aa2carlife cat files/aa2cl.log
 
 ## 文档
 
-`docs/` 下按主题整理：可行性报告、技术方案、开发手册、触摸协议、台架验证、方案评审。
+完整项目说明见 [docs/PROJECT.md](docs/PROJECT.md)。
