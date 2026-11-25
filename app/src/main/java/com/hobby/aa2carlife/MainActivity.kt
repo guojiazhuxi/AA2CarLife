@@ -326,6 +326,26 @@ class MainActivity : Activity() {
         findViewById<Button>(R.id.btn_log_bottom).setOnClickListener {
             logScroll.fullScroll(ScrollView.FOCUS_DOWN)
         }
+        // 日志内部滚动优先：能滚时禁止外层 ScrollView 抢；到顶/底后交还整页。
+        var logDownY = 0f
+        logScroll.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    logDownY = event.y
+                    v.parent?.requestDisallowInterceptTouchEvent(true)
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dy = event.y - logDownY
+                    if (dy != 0f) {
+                        val canScroll = if (dy > 0) v.canScrollVertically(-1) else v.canScrollVertically(1)
+                        v.parent?.requestDisallowInterceptTouchEvent(canScroll)
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                    v.parent?.requestDisallowInterceptTouchEvent(false)
+            }
+            false
+        }
         findViewById<ScrollView>(R.id.root_scroll).post {
             findViewById<ScrollView>(R.id.root_scroll).scrollTo(0, 0)
         }
