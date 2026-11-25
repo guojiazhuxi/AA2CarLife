@@ -55,11 +55,15 @@ import kotlin.concurrent.thread
  *
  * 协议实现来自 AARE aap 模块（GPL-3.0）。
  */
+/** AA TouchEvent 里的一个触点（坐标是 AA 安全区坐标）。 */
+data class AaTouchPoint(val id: Int, val x: Int, val y: Int)
+
 class AaHeadUnitServer(
     private val assets: AssetManager,
     private val port: Int = 5277,
     onLog: (String) -> Unit,
     onTouch: ((action: Int, x: Int, y: Int, pointerId: Int) -> Unit)? = null,
+    onMultiTouch: ((List<AaTouchPoint>) -> Unit)? = null,
 ) {
 
     /** 回调可换绑：Activity 销毁/重建时更新，避免因界面销毁而丢掉 AA 会话。 */
@@ -69,13 +73,19 @@ class AaHeadUnitServer(
     @Volatile
     private var onTouch: ((action: Int, x: Int, y: Int, pointerId: Int) -> Unit)? = onTouch
 
+    /** 双指 MOVE：一次事件里的两根手指一起交给上层。 */
+    @Volatile
+    private var onMultiTouch: ((List<AaTouchPoint>) -> Unit)? = onMultiTouch
+
     /** 界面重建后重新绑定回调（AA 服务器可能比 Activity 活得久）。 */
     fun updateHandlers(
         log: (String) -> Unit,
         touch: ((action: Int, x: Int, y: Int, pointerId: Int) -> Unit)?,
+        multiTouch: ((List<AaTouchPoint>) -> Unit)? = null,
     ) {
         onLog = log
         onTouch = touch
+        onMultiTouch = multiTouch
     }
 
     companion object {
@@ -1106,18 +1116,24 @@ class AaHeadUnitServer(
                 val action = t.action.number
                 val pointers = t.pointerDataList
                 if (pointers.isNotEmpty()) {
-                    // 双指 MOVE：AA 的 TouchEvent 会带两根手指，必须都交给上层，
-                    // 否则第二根手指的位移被丢掉，车机上的捏合/双指手势会失效。
-                    if (action == 2 && pointers.size >= 2) {
-                        pointers.take(2).forEach { pd ->
-                            onTouch?.invoke(action, pd.x.toInt(), pd.y.toInt(), pd.pointerId.toInt())
-                        }
+                    // 双指 MOVE：一次事件里可能有 2 个触点，整包交给上层，
+                    // 由桥接按你预览里的 CPTCL 状态机发一条 0x68004（而不是两根手指各发一条）。
+                    if (action == 2 && pointers.size >= 2 && onMultiTouch != null) {
+                        onMultiTouch?.invoke(
+                            pointers.take(2).map { pd ->
+                                AaTouchPoint(pd.pointerId.toInt(), pd.x.toInt(), pd.y.toInt())
+                            },
+                        )
                         return
                     }
-                    val p = if (action == 5 || action == 6) {
-                        pointers.firstOrNull { it.pointerId != 0 } ?: pointers[0]
-                    } else {
-                        pointers.firstOrNull { it.pointerId == 0 } ?: pointers[0]
+                    // 按下/抬起优先用 actionIndex（AA 的 TouchEvent 自带），
+                    // 否则无法判断抬起的是第一指还是第二指。
+                    val actionIndex = if (t.hasActionIndex()) t.actionIndex else -1
+                    val p = when {
+                        actionIndex in 0 until pointers.size -> pointers[actionIndex]
+                        action == 5 || action == 6 ->
+                            pointers.firstOrNull { it.pointerId != 0 } ?: pointers[0]
+                        else -> pointers.firstOrNull { it.pointerId == 0 } ?: pointers[0]
                     }
                     val x = p.x.toInt()
                     val y = p.y.toInt()

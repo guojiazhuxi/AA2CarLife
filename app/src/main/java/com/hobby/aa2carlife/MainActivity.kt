@@ -30,6 +30,7 @@ import android.widget.TextView
 import android.widget.Toast
 import com.hobby.aa2carlife.carlife.CarLifeProtocol
 import com.hobby.aa2carlife.aa.AaHeadUnitServer
+import com.hobby.aa2carlife.aa.AaTouchPoint
 import com.hobby.aa2carlife.aa.PlaceholderVideo
 import com.hobby.aa2carlife.diag.RingLog
 import com.hobby.aa2carlife.ui.AspectSurfaceView
@@ -182,6 +183,12 @@ class MainActivity : Activity() {
     private val aaPointerY = android.util.SparseIntArray()
     private var aaDualLogBudget = 20
 
+    /** 复刻预览触摸的 CPTCL 状态机：第二指按下后 multiActive=true。 */
+    private var aaMultiActive = false
+    private var aaSecondDown = false
+    private var aaSecondX = 0
+    private var aaSecondY = 0
+
     @Volatile
     private var aaVideoHeight = 720
 
@@ -262,10 +269,12 @@ class MainActivity : Activity() {
             assets = applicationContext.assets,
             onLog = { RingLog.add(it) },
             onTouch = { action, x, y, id -> handleAaTouch(action, x, y, id) },
+            onMultiTouch = { points -> handleAaMultiTouch(points) },
         ).also { sharedAaServer = it }
         aaServer?.updateHandlers(
             log = { RingLog.add(it) },
             touch = { action, x, y, id -> handleAaTouch(action, x, y, id) },
+            multiTouch = { points -> handleAaMultiTouch(points) },
         )
         // 后台生成一帧 1280x720 占位画面：AA 连上但 CarLife 还没出帧时，先发给车机避免黑屏超时
         if (aaServer?.hasPlaceholder() != true) {
@@ -479,7 +488,7 @@ class MainActivity : Activity() {
         // 关键：不 stop() AA 服务器。打开设置/切后台时 Activity 可能被销毁，
         // 一旦 stop 就会把车机投屏会话一起掐断。服务器由静态持有，界面重建后重新绑定回调。
         cancelAutoStartRetry()
-        aaServer?.updateHandlers(log = { RingLog.add(it) }, touch = null)
+        aaServer?.updateHandlers(log = { RingLog.add(it) }, touch = null, multiTouch = null)
         aaServer = null
         RingLog.listener = null
     }
@@ -1224,56 +1233,91 @@ class MainActivity : Activity() {
             RingLog.add("AA: 收到触摸但 CarLife 会话未启动（action=$action x=$x y=$y）")
             return
         }
-        val tw = svc.touchWidth.coerceAtLeast(1)
-        val th = svc.touchHeight.coerceAtLeast(1)
-        // AA 的触摸坐标是相对**车机安全区**（content area）的，不是整张画布。
-        // 安全区比例和 CarLife 画布 1412:654 一致，直接按比例映射即可；若按整张
-        // 1920x1080 映射，触摸会偏到黑边上（约 12% 误差）。
-        val safe = svc.carSafeArea
-        val aw = (safe?.getOrNull(0)?.takeIf { it > 0 } ?: aaVideoWidth).coerceAtLeast(1)
-        val ah = (safe?.getOrNull(1)?.takeIf { it > 0 } ?: aaVideoHeight).coerceAtLeast(1)
-        fun mx(v: Int) = (v.toLong() * tw / aw).toInt().coerceIn(0, tw - 1)
-        fun my(v: Int) = (v.toLong() * th / ah).toInt().coerceIn(0, th - 1)
-        val px = mx(x)
-        val py = my(y)
+        val (px, py) = mapAaPoint(svc, x, y)
         when (action) {
             0 -> {
                 aaPointerX.clear(); aaPointerY.clear()
                 aaPointerX.put(pointerId, px); aaPointerY.put(pointerId, py)
+                aaMultiActive = false
+                aaSecondDown = false
                 svc.touchSingle(CarLifeProtocol.TOUCH_DOWN, px, py)
             }
             5 -> {
                 aaPointerX.put(pointerId, px); aaPointerY.put(pointerId, py)
+                aaMultiActive = true
+                aaSecondDown = true
+                aaSecondX = px; aaSecondY = py
                 svc.touchPointerDown(px, py)
-                if (aaDualLogBudget > 0) { aaDualLogBudget--; RingLog.add("TOUCH: 第二指按下 id=$pointerId ($px,$py)") }
+                if (aaDualLogBudget > 0) { aaDualLogBudget--; RingLog.add("TOUCH: 多指 ↓2 → 0x6800B id=$pointerId ($px,$py)") }
             }
             2 -> {
                 aaPointerX.put(pointerId, px); aaPointerY.put(pointerId, py)
-                if (aaPointerX.size() >= 2) {
-                    val id0 = aaPointerX.keyAt(0)
-                    val id1 = aaPointerX.keyAt(1)
-                    svc.touchMoveDual(
-                        aaPointerX.get(id0), aaPointerY.get(id0),
-                        aaPointerX.get(id1), aaPointerY.get(id1),
-                    )
-                    if (aaDualLogBudget > 0) {
-                        aaDualLogBudget--
-                        RingLog.add("TOUCH: 双指 MOVE id0=$id0 id1=$id1")
-                    }
-                } else {
-                    svc.touchSingle(CarLifeProtocol.TOUCH_MOVE, px, py)
-                }
+                // 双指 MOVE 由 handleAaMultiTouch 整包发 0x68004；双指期间的单指 MOVE 忽略，和预览 CPTCL 一致
+                if (!aaMultiActive) svc.touchSingle(CarLifeProtocol.TOUCH_MOVE, px, py)
             }
             6 -> {
+                if (pointerId == 0) {
+                    svc.touchPointerUp(px, py) // 0x6800C 第一指抬起
+                    if (aaDualLogBudget > 0) { aaDualLogBudget--; RingLog.add("TOUCH: 多指 ↑1 → 0x6800C ($px,$py)") }
+                } else {
+                    svc.touchOtherPointerUp(px, py) // 0x6800D 第二指抬起
+                    aaSecondDown = false
+                    if (aaDualLogBudget > 0) { aaDualLogBudget--; RingLog.add("TOUCH: 多指 ↑2 → 0x6800D ($px,$py)") }
+                }
                 aaPointerX.delete(pointerId); aaPointerY.delete(pointerId)
-                if (pointerId == 0) svc.touchPointerUp(px, py) else svc.touchOtherPointerUp(px, py)
             }
             1 -> {
+                if (aaMultiActive && aaSecondDown) {
+                    // 收尾顺序：先补第二指抬起，再 ACTION_UP，否则引擎留幽灵触点
+                    svc.touchOtherPointerUp(aaSecondX, aaSecondY)
+                    aaSecondDown = false
+                }
                 svc.touchSingle(CarLifeProtocol.TOUCH_UP, px, py)
+                aaMultiActive = false
                 aaPointerX.clear(); aaPointerY.clear()
             }
             else -> RingLog.add("AA: 未知触摸 action=$action")
         }
+    }
+
+    /** 双指 MOVE：一次 AA 事件里的两根手指一起映射，只发一条 0x68004。 */
+    private fun handleAaMultiTouch(points: List<AaTouchPoint>) {
+        val svc = service ?: return
+        if (points.size < 2) {
+            val p = points.firstOrNull() ?: return
+            val (px, py) = mapAaPoint(svc, p.x, p.y)
+            aaPointerX.put(p.id, px); aaPointerY.put(p.id, py)
+            if (!aaMultiActive) svc.touchSingle(CarLifeProtocol.TOUCH_MOVE, px, py)
+            return
+        }
+        val p0 = points[0]
+        val p1 = points[1]
+        val (x0, y0) = mapAaPoint(svc, p0.x, p0.y)
+        val (x1, y1) = mapAaPoint(svc, p1.x, p1.y)
+        aaPointerX.put(p0.id, x0); aaPointerY.put(p0.id, y0)
+        aaPointerX.put(p1.id, x1); aaPointerY.put(p1.id, y1)
+        if (aaMultiActive) {
+            svc.touchMoveDual(x0, y0, x1, y1)
+            if (aaDualLogBudget > 0) {
+                aaDualLogBudget--
+                RingLog.add("TOUCH: 双指 MOVE → 0x68004 ($x0,$y0) ($x1,$y1)")
+            }
+        } else {
+            // 异常顺序（没收到第二指按下）：按单指 MOVE 容错，不硬发双指
+            svc.touchSingle(CarLifeProtocol.TOUCH_MOVE, x0, y0)
+        }
+    }
+
+    /** AA 安全区坐标 → CarLife 触摸画布坐标。 */
+    private fun mapAaPoint(svc: CarLifeService, x: Int, y: Int): Pair<Int, Int> {
+        val tw = svc.touchWidth.coerceAtLeast(1)
+        val th = svc.touchHeight.coerceAtLeast(1)
+        val safe = svc.carSafeArea
+        val aw = (safe?.getOrNull(0)?.takeIf { it > 0 } ?: aaVideoWidth).coerceAtLeast(1)
+        val ah = (safe?.getOrNull(1)?.takeIf { it > 0 } ?: aaVideoHeight).coerceAtLeast(1)
+        val px = (x.toLong() * tw / aw).toInt().coerceIn(0, tw - 1)
+        val py = (y.toLong() * th / ah).toInt().coerceIn(0, th - 1)
+        return px to py
     }
 
     // ---- 自测：程序内合成双指捏合（免手动，便于我自己用 adb 验证）----
