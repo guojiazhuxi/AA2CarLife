@@ -174,3 +174,21 @@
 - AGP/Kotlin 有更新版本。
 
 仍未处理的功能/安全项：AudioTrack 部分写入重试、报文长度上限、AA 音频通道选择（需服务发现日志）、TLS pinning、Wakelock 超时。
+## 10. P2 前五项修复记录
+
+修复提交：`4bf0371`。
+
+- ✅ CarLifeAudio 部分写入重试：按 offset 续写，250ms 超时；超时才丢弃剩余字节并计数，避免静默丢 PCM。
+- ✅ 报文长度上限：视频本来已有 8MB 检查；补充控制通道 16KB 上限（U16 长度本身最大 64KB）。
+- ✅ AaHeadUnitServer.start：先成功绑定 ServerSocket 再置 running=true；start/stop 加 `@Synchronized`，绑定失败不再卡死后续启动。
+- ✅ 视频发送与 stop 竞态：codec config/frame 发送加 runCatching；失败只记一次日志，不再让异常冒到 CarLife 线程。
+- ✅ Wakelock：改为 10 分钟 timeout，8 分钟自动续期；release 时移除续期回调。
+
+修复后验证：
+
+- assembleDebug 成功；
+- 4 个单测通过；
+- Lint：0 errors / 8 warnings；
+- 已安装并启动（2026-11-26 01:34:41）。
+
+剩余 8 条 warning：电池优化权限政策提醒、固定竖屏 2 条、AARE TrustAll 3 条、AGP/Kotlin 版本更新 2 条。
