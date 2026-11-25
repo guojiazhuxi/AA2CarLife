@@ -785,8 +785,23 @@ class AaHeadUnitServer(
                     override fun onServiceDiscovery(
                         session: AapSession,
                         response: ServiceDiscoveryResponse,
-                    ): List<ServiceChannel> = response.channelsList.mapNotNull { s ->
-                        when {
+                    ): List<ServiceChannel> {
+                        response.channelsList.forEachIndexed { index, s ->
+                            val media = if (s.hasMediaSinkService()) {
+                                "media(video=" + s.mediaSinkService.videoConfigsCount +
+                                    ", audio=" + s.mediaSinkService.audioType + ")"
+                            } else {
+                                "media=no"
+                            }
+                            onLog(
+                                "AA: 服务[" + index + "] id=" + s.id + " " + media +
+                                    " input=" + s.hasInputSourceService() +
+                                    " sensor=" + s.hasSensorSourceService() +
+                                    " bt=" + s.hasBluetoothService(),
+                            )
+                        }
+                        return response.channelsList.mapNotNull { s ->
+                            when {
                             s.hasMediaSinkService() && s.mediaSinkService.videoConfigsCount > 0 ->
                                 VideoChannel(s, videoListener()).also { video = it }
 
@@ -839,7 +854,8 @@ class AaHeadUnitServer(
 
                             s.hasVendorExtensionService() -> PassiveChannel(s, "vendor")
 
-                            else -> null
+                                else -> null
+                            }
                         }
                     }
 
