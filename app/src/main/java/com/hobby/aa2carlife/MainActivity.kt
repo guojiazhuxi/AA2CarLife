@@ -385,14 +385,8 @@ class MainActivity : Activity() {
         chkRotate90.setOnCheckedChangeListener { _, checked ->
             previewPrefs.edit().putBoolean("preview_rotate90", checked).apply()
             surfaceView.rotate90 = checked
-            service?.rotate90 = checked
-            RingLog.add("VIDEO: 显示旋转 90° ${if (checked) "开启" else "关闭"}（下次启动会话生效）")
-            // 注意：不能在这里重启 CarLife 会话 —— 实测主动断开后荣耀车联引擎会退出
-            // 「正在连接」服务态且无法自动重连，重启会直接把车机投屏搞断。旋转只影响本地预览。
-            val svc = service
-            if (svc != null && svc.isSessionRunning()) {
-                RingLog.add("VIDEO: 当前会话仍按旧旋转方向显示；断开重连后生效")
-            }
+            service?.setPreviewRotation(checked)
+            RingLog.add("VIDEO: 显示旋转 90° ${if (checked) "开启" else "关闭"}（已重建预览解码器，立即生效）")
         }
         tapSendSingleClick = chkTapSingleClick.isChecked
         chkTapSingleClick.setOnCheckedChangeListener { _, checked ->
