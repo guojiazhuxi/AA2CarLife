@@ -18,7 +18,9 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 import android.view.MotionEvent
-import android.view.SurfaceHolder
+import android.graphics.SurfaceTexture
+import android.view.Surface
+import android.view.TextureView
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
@@ -34,7 +36,7 @@ import com.hobby.aa2carlife.aa.AaHeadUnitServer
 import com.hobby.aa2carlife.aa.AaTouchPoint
 import com.hobby.aa2carlife.aa.PlaceholderVideo
 import com.hobby.aa2carlife.diag.RingLog
-import com.hobby.aa2carlife.ui.AspectSurfaceView
+import com.hobby.aa2carlife.ui.RotateLayout
 
 /** 捏合量 → 上下拖动量的放大系数（1.5 倍；方向若反了改成 -1.5）。 */
 private const val TRANSLATE_GAIN = 1.5f
@@ -127,13 +129,16 @@ class MainActivity : Activity() {
     /** 官方"新触摸模式"：每个 MotionEvent 发一条 0x68001（action 直接透传，官方默认模式）。 */
     private var newTouchMode = false
 
-    private lateinit var surfaceView: AspectSurfaceView
+    private lateinit var surfaceView: RotateLayout
+    private lateinit var textureView: TextureView
+    private var previewSurface: Surface? = null
     private lateinit var statusText: TextView
     private lateinit var logText: TextView
     private lateinit var logScroll: ScrollView
     private lateinit var chkMoveIndex: CheckBox
     private lateinit var chkCptclPipeline: CheckBox
     private lateinit var chkNewTouch: CheckBox
+    private lateinit var chkRotate90: CheckBox
     private var aaServer: AaHeadUnitServer? = null
 
     /** USB 车机已接入、但还没启动 CarLife 会话（等 Service 绑定后自动启动）。 */
@@ -201,7 +206,7 @@ class MainActivity : Activity() {
             service?.aaVideoSink = { frame -> aaServer?.sendVideoFrame(frame) }
             service?.aaAudioSink = { data, length -> aaServer?.sendAudioPcm(data, length) }
             service?.aaAudioFormatSink = { rate, channels -> aaServer?.setSourceAudioFormat(rate, channels) }
-            surfaceView.holder.surface?.takeIf { it.isValid }?.let { service?.attachSurface(it) }
+            attachPreviewSurfaceIfReady()
             refreshMainButton()
             applyResolutionChoice()
             // 若绑定完成时车机已经接入（USB 事件先于 Service 绑定），这里补一次自动启动
@@ -224,12 +229,14 @@ class MainActivity : Activity() {
         setContentView(R.layout.activity_main)
 
         surfaceView = findViewById(R.id.surface_view)
+        textureView = findViewById(R.id.preview_texture)
         statusText = findViewById(R.id.status_text)
         logText = findViewById(R.id.log_text)
         logScroll = findViewById(R.id.log_scroll)
         chkMoveIndex = findViewById(R.id.chk_move_index)
         chkCptclPipeline = findViewById(R.id.chk_cptcl_pipeline)
         chkNewTouch = findViewById(R.id.chk_new_touch)
+        chkRotate90 = findViewById(R.id.chk_rotate90)
         chkTapSingleClick = findViewById(R.id.chk_tap_single_click)
         btnMainConnect = findViewById(R.id.btn_main_connect)
         btnAdvancedToggle = findViewById(R.id.btn_advanced_toggle)
@@ -311,19 +318,27 @@ class MainActivity : Activity() {
         // M4：如果本 Activity 是被 USB accessory 接入事件拉起的，直接开 AAP 会话
         handleUsbIntent(intent)
 
-        surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
-            override fun surfaceCreated(holder: SurfaceHolder) {
-                service?.attachSurface(holder.surface)
+        textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+            override fun onSurfaceTextureAvailable(st: SurfaceTexture, width: Int, height: Int) {
+                previewSurface?.release()
+                val s = Surface(st)
+                previewSurface = s
+                service?.attachSurface(s)
             }
 
-            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-                service?.attachSurface(holder.surface)
+            override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, width: Int, height: Int) {
+                surfaceView.requestLayout()
             }
 
-            override fun surfaceDestroyed(holder: SurfaceHolder) {
+            override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
                 service?.detachSurface()
+                previewSurface?.release()
+                previewSurface = null
+                return true
             }
-        })
+
+            override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
+        }
 
         surfaceView.setOnTouchListener { v, event ->
             try {
@@ -374,9 +389,13 @@ class MainActivity : Activity() {
             RingLog.add("TOUCH: 新触摸模式（0x68001 动作透传）${if (checked) "开启" else "关闭"}")
         }
         cptclPipeline = chkCptclPipeline.isChecked
-        // 预览固定横屏：本机硬解 KEY_ROTATION 配置抛 IllegalArgumentException，旋转开关已移除
+        // 预览旋转用 TextureView 变换：只改 View 比例/rotation，不重建解码器、不碰 KEY_ROTATION
+        chkRotate90.isChecked = false
         surfaceView.rotate90 = false
-        service?.rotate90 = false
+        chkRotate90.setOnCheckedChangeListener { _, checked ->
+            surfaceView.rotate90 = checked
+            RingLog.add("VIDEO: 预览旋转90° " + (if (checked) "开启" else "关闭") + "（TextureView 变换，不重建解码器）")
+        }
         tapSendSingleClick = chkTapSingleClick.isChecked
         chkTapSingleClick.setOnCheckedChangeListener { _, checked ->
             tapSendSingleClick = checked
@@ -465,6 +484,8 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        previewSurface?.release()
+        previewSurface = null
         RingLog.add("ACT: onDestroy")
         // 关键：不 stop() AA 服务器。打开设置/切后台时 Activity 可能被销毁，
         // 一旦 stop 就会把车机投屏会话一起掐断。服务器由静态持有，界面重建后重新绑定回调。
@@ -879,6 +900,12 @@ class MainActivity : Activity() {
      * 坐标从 View 空间线性映射到「车机显示空间」（= 申请/解码分辨率），
      * 引擎内部会再做一次到手机屏的换算，这里不替它做 offset 换算。
      */
+    private fun attachPreviewSurfaceIfReady() {
+        val s = previewSurface ?: return
+        if (!s.isValid) return
+        service?.attachSurface(s)
+    }
+
     private fun handleTouch(view: View, event: MotionEvent): Boolean {
         val svc = service ?: return false
         val targetWidth = svc.touchWidth.takeIf { it > 0 } ?: 1280

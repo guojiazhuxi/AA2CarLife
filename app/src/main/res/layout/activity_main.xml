@@ -25,11 +25,19 @@
         android:layout_marginTop="6dp"
         android:background="#000000">
 
-        <com.hobby.aa2carlife.ui.AspectSurfaceView
+        <com.hobby.aa2carlife.ui.RotateLayout
             android:id="@+id/surface_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_gravity="center" />
+            android:layout_gravity="center"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextureView
+                android:id="@+id/preview_texture"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+        </com.hobby.aa2carlife.ui.RotateLayout>
     </FrameLayout>
 
     <TextView
@@ -111,6 +119,14 @@
             android:orientation="horizontal">
 
 
+
+            <CheckBox
+                android:id="@+id/chk_rotate90"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="false"
+                android:text="@string/chk_rotate90"
+                android:textSize="12sp" />
 
             <CheckBox
                 android:id="@+id/chk_tap_single_click"
