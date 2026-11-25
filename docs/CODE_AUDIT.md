@@ -1,6 +1,6 @@
 # AA2CarLife 代码审计报告
 
-> 快照：`main @ 6cd6ccc`（2026-11-26）。本次只做静态审计和记录，未修改业务代码。
+> 快照：`main @ 6cd6ccc`（2026-11-26）。审计阶段未改业务代码；P1 修复记录见第 8 节。
 
 ## 1. 审计范围与方法
 
@@ -124,6 +124,23 @@
 3. 删除 Compose 主题/依赖/测试模板和 24 个未使用资源。
 4. 修 Lint error，清 HardcodedText/SmallSp/无障碍警告。
 5. 增加最小单测和 CI（build + lint + unit test）。
+
+## 8. P1 修复记录
+
+修复提交：`4bfa7b6`。
+
+- ✅ RingLog 改用 `DateTimeFormatter`，移除线程不安全的 `SimpleDateFormat`。
+- ✅ CarLifeService 增加 `sessionLock + sessionGeneration + startThread`：stop 会取消启动、等待建流结束，避免幽灵会话。
+- ✅ CarLifeHuClient 触摸入队捕获 `RejectedExecutionException`，停止中的迟到触摸不再崩 UI。
+- ✅ 媒体 PAUSE/RESUME/STOP 与 TTS STOP 已接到 `CarLifeAudio`；本地 AudioTrack 会暂停/恢复/停止并 flush。
+- ✅ `CarLifeAudio` 增加 `released` 标志，释放后的旧回调不会重新创建 AudioTrack。
+- ✅ TranscodePipeline.release() 会 join GL 线程（1.5s 超时），避免旧/新管线重叠。
+- ✅ `audio`、`client`、`lastMedia*` 已加 `@Volatile`，改善跨线程可见性。
+- ⚠️ AA 音频通道：已加服务发现诊断（同时带视频/音频、未找到 MEDIA 通道时明确告警）；没有在未实测车机服务列表前强行双开通道，避免破坏 AAP 的 service/id 约束。
+
+修复后验证：`:app:assembleDebug` 成功；重新跑 Lint 结果 **0 errors / 78 warnings**（本机 `local.properties` 路径已修正，该文件不进 Git）。
+
+剩余 P2/P3 未动：死代码清理、Compose 依赖/主题删除、24 个未使用资源、模板测试、硬编码文案、无障碍/小字号等。
 
 ## 7. 备注
 
