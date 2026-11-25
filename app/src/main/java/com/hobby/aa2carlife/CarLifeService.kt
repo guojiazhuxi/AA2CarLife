@@ -592,22 +592,6 @@ class CarLifeService : Service() {
         }, "carlife-session").apply { isDaemon = true }.start()
     }
 
-    /** 运行时切换预览旋转：延迟重建预览解码器，避开 Surface 尺寸变化竞态。 */
-    fun setPreviewRotation(enabled: Boolean) {
-        if (rotate90 == enabled) return
-        rotate90 = enabled
-        val s = surface ?: return
-        decoder?.release()
-        decoder = null
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            val cur = surface ?: return@postDelayed
-            val d = CarLifeVideoDecoder(cur, enabled, lastRawCodecConfig)
-            d.onRotationFallback = { onPreviewRotationFallback?.invoke() }
-            decoder = d
-            lastRawKeyFrame?.let { runCatching { d.submit(it, 0) } }
-            RingLog.add("VIDEO: 预览旋转 " + (if (enabled) "开启" else "关闭") + "（延迟重建预览解码器）")
-        }, 350L)
-    }
 
     /** 会话稳定后对比 CarLife 实际码流尺寸与车机安全区；不一致提示重连一次。 */
     private fun checkResolutionSettled() {

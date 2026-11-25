@@ -134,7 +134,6 @@ class MainActivity : Activity() {
     private lateinit var chkMoveIndex: CheckBox
     private lateinit var chkCptclPipeline: CheckBox
     private lateinit var chkNewTouch: CheckBox
-    private lateinit var chkRotate90: CheckBox
     private var aaServer: AaHeadUnitServer? = null
 
     /** USB 车机已接入、但还没启动 CarLife 会话（等 Service 绑定后自动启动）。 */
@@ -197,16 +196,6 @@ class MainActivity : Activity() {
             service = local.service()
             surfaceView.setVideoSize(service?.previewWidth ?: 1412, service?.previewHeight ?: 654)
             service?.onResolutionMismatch = { msg -> showReconnectHint(msg) }
-            service?.onPreviewRotationFallback = {
-                runOnUiThread {
-                    if (chkRotate90.isChecked) {
-                        chkRotate90.isChecked = false
-                        surfaceView.rotate90 = false
-                        Toast.makeText(this@MainActivity, "本机硬解不支持旋转90°，已恢复横屏", Toast.LENGTH_LONG).show()
-                        RingLog.add("VIDEO: KEY_ROTATION 不支持，已自动恢复横屏")
-                    }
-                }
-            }
             service?.rotate90 = false
             // M3：把 CarLife 视频/音频转给 AA 手机端（只在台架连接时有用）
             service?.aaVideoSink = { frame -> aaServer?.sendVideoFrame(frame) }
@@ -241,7 +230,6 @@ class MainActivity : Activity() {
         chkMoveIndex = findViewById(R.id.chk_move_index)
         chkCptclPipeline = findViewById(R.id.chk_cptcl_pipeline)
         chkNewTouch = findViewById(R.id.chk_new_touch)
-        chkRotate90 = findViewById(R.id.chk_rotate90)
         chkTapSingleClick = findViewById(R.id.chk_tap_single_click)
         btnMainConnect = findViewById(R.id.btn_main_connect)
         btnAdvancedToggle = findViewById(R.id.btn_advanced_toggle)
@@ -386,15 +374,9 @@ class MainActivity : Activity() {
             RingLog.add("TOUCH: 新触摸模式（0x68001 动作透传）${if (checked) "开启" else "关闭"}")
         }
         cptclPipeline = chkCptclPipeline.isChecked
-        // 预览默认横屏；旋转90°按用户点击运行时尝试 KEY_ROTATION，失败会自动恢复
-        chkRotate90.isChecked = false
+        // 预览固定横屏：本机硬解 KEY_ROTATION 配置抛 IllegalArgumentException，旋转开关已移除
         surfaceView.rotate90 = false
         service?.rotate90 = false
-        chkRotate90.setOnCheckedChangeListener { _, checked ->
-            surfaceView.rotate90 = checked
-            service?.setPreviewRotation(checked)
-            RingLog.add("VIDEO: 显示旋转 90° " + (if (checked) "开启" else "关闭") + "（重建预览解码器，KEY_ROTATION）")
-        }
         tapSendSingleClick = chkTapSingleClick.isChecked
         chkTapSingleClick.setOnCheckedChangeListener { _, checked ->
             tapSendSingleClick = checked
