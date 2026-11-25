@@ -2,8 +2,6 @@ package com.hobby.aa2carlife
 
 import android.Manifest
 import android.app.Activity
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -28,7 +26,6 @@ import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ScrollView
-import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import com.hobby.aa2carlife.carlife.CarLifeProtocol
@@ -80,8 +77,7 @@ class MainActivity : Activity() {
     private var secondY = 0
     private var touchLogBudget = 0
     private var multiDebugBudget = 0
-    private var selftestZoomOut = false
-
+    
     // 单指拖动判定：从按下点累计位移超过阈值才算拖动，之前一律不发 MOVE
     // （防止慢点击/手指微抖被引擎当成滚动，导致"按钮点不动"）
     private var lastSentMoveX = 0
@@ -198,7 +194,6 @@ class MainActivity : Activity() {
     private lateinit var previewFrame: FrameLayout
     private lateinit var chkLocalAudio: CheckBox
     private lateinit var hintExtra: TextView
-    private lateinit var spinnerResolution: Spinner
 
     /** 0=自动 1=1280x720 2=1920x1080 3=800x480 */
     private var resolutionChoiceIndex = 0
@@ -271,24 +266,6 @@ class MainActivity : Activity() {
         previewFrame = findViewById(R.id.preview_frame)
         chkLocalAudio = findViewById(R.id.chk_local_audio)
         hintExtra = findViewById(R.id.hint_extra)
-        spinnerResolution = findViewById(R.id.spinner_resolution)
-        val resolutionOptions = arrayOf("自动（跟随车机）", "1280×720", "1920×1080", "800×480（引擎可能回落）")
-        spinnerResolution.adapter = android.widget.ArrayAdapter(
-            this,
-            android.R.layout.simple_spinner_dropdown_item,
-            resolutionOptions,
-        )
-        spinnerResolution.setSelection(resolutionChoiceIndex)
-        // 固定 1080p 输出：隐藏分辨率选项，避免误改破坏转码管线
-        runCatching { (spinnerResolution.parent as? View)?.visibility = View.GONE }
-        spinnerResolution.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-                resolutionChoiceIndex = position
-                applyResolutionChoice()
-            }
-
-            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
-        }
 
         val appPrefs = getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
         // 预览开关：显示区域放在高级选项里，由用户决定开不开
@@ -411,20 +388,7 @@ class MainActivity : Activity() {
 
         // ===== 一键连接：唯一主按钮 =====
         btnMainConnect.setOnClickListener { onMainConnectClick() }
-        findViewById<Button>(R.id.btn_copy).setOnClickListener { copyLogToClipboard() }
-        findViewById<Button>(R.id.btn_clear).setOnClickListener {
-            RingLog.clear()
-            logText.text = ""
-        }
-        findViewById<Button>(R.id.btn_selftest).setOnClickListener { runSelfTestPinch() }
-        findViewById<Button>(R.id.btn_aa_bench).setOnClickListener {
-            val server = aaServer ?: return@setOnClickListener
-            if (server.isRunning()) {
-                server.stop()
-            } else {
-                server.start()
-            }
-        }
+
 
         // 单击补发/MOVE索引/新触摸实验项已移除；单指走官方手势，双指回退 CPTCL。
 
@@ -1612,102 +1576,9 @@ class MainActivity : Activity() {
         return px to py
     }
 
-    // ---- 自测：程序内合成双指捏合（免手动，便于我自己用 adb 验证）----
 
-    private data class TouchStep(val action: Int, val xs: IntArray, val ys: IntArray)
 
-    private fun runSelfTestPinch() {
-        if (service == null) {
-            RingLog.add("SELFTEST: 服务未连接，先点启动")
-            return
-        }
-        val w = surfaceView.width
-        val h = surfaceView.height
-        if (w <= 0 || h <= 0) {
-            RingLog.add("SELFTEST: 视图尺寸为 0，稍后再试")
-            return
-        }
-        val cx = (w * 0.72f).toInt()
-        val cy = (h * 0.30f).toInt()
-        val zoomOut = selftestZoomOut
-        selftestZoomOut = !selftestZoomOut
-        RingLog.add(
-            "SELFTEST: 开始合成双指${if (zoomOut) "捏合(缩小)" else "张开(放大)"} " +
-                "@ view ${w}x$h anchor=($cx,$cy)",
-        )
-        val near = 80
-        val far = 230
-        val start = if (zoomOut) far else near
-        val end = if (zoomOut) near else far
-        val steps = listOf(
-            TouchStep(MotionEvent.ACTION_DOWN, intArrayOf(cx - start), intArrayOf(cy)),
-            TouchStep(
-                MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT),
-                intArrayOf(cx - start, cx + start),
-                intArrayOf(cy, cy),
-            ),
-            TouchStep(MotionEvent.ACTION_MOVE, intArrayOf(cx - (start + end) / 2, cx + (start + end) / 2), intArrayOf(cy, cy)),
-            TouchStep(MotionEvent.ACTION_MOVE, intArrayOf(cx - end, cx + end), intArrayOf(cy, cy)),
-            TouchStep(
-                MotionEvent.ACTION_POINTER_UP or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT),
-                intArrayOf(cx - end, cx + end),
-                intArrayOf(cy, cy),
-            ),
-            TouchStep(MotionEvent.ACTION_UP, intArrayOf(cx - end), intArrayOf(cy)),
-        )
-        var index = 0
-        val runner = object : Runnable {
-            override fun run() {
-                if (index >= steps.size) {
-                    RingLog.add("SELFTEST: 捏合序列结束")
-                    return
-                }
-                val step = steps[index++]
-                val event = createTouchEvent(step.action, step.xs, step.ys)
-                try {
-                    handleTouch(surfaceView, event)
-                } catch (e: Exception) {
-                    RingLog.add("SELFTEST: 异常 ${e.javaClass.simpleName}: ${e.message}")
-                } finally {
-                    event.recycle()
-                }
-                uiHandler.postDelayed(this, 60)
-            }
-        }
-        uiHandler.postDelayed(runner, 100)
-    }
 
-    private fun createTouchEvent(action: Int, xs: IntArray, ys: IntArray): MotionEvent {
-        val now = android.os.SystemClock.uptimeMillis()
-        val props = Array(xs.size) { i ->
-            MotionEvent.PointerProperties().apply {
-                id = i
-                toolType = MotionEvent.TOOL_TYPE_FINGER
-            }
-        }
-        val coords = Array(xs.size) { i ->
-            MotionEvent.PointerCoords().apply {
-                x = xs[i].toFloat()
-                y = ys[i].toFloat()
-                pressure = 1f
-                size = 1f
-            }
-        }
-        return MotionEvent.obtain(
-            now, now, action, xs.size, props, coords,
-            0, 0, 1f, 1f, 0, 0,
-            android.view.InputDevice.SOURCE_TOUCHSCREEN, 0,
-        )
-    }
 
-    /** 一键复制全部日志到剪贴板，方便贴给我排查。 */
-    private fun copyLogToClipboard() {
-        try {
-            val cm = getSystemService(ClipboardManager::class.java)
-            cm.setPrimaryClip(ClipData.newPlainText("AA2CarLife log", RingLog.snapshot()))
-            Toast.makeText(this, "日志已复制（${RingLog.snapshot().length} 字符）", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            Toast.makeText(this, "复制失败：${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
+
 }

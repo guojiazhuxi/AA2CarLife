@@ -12,34 +12,35 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- 顶部：软件名 + 状态；整体下移 -->
-        <Space
-            android:layout_width="match_parent"
-            android:layout_height="80dp" />
-
+        <!-- 软件名固定左上角 -->
         <TextView
             android:id="@+id/status_text"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center"
+            android:gravity="start"
+            android:paddingTop="4dp"
             android:text="AA2CarLife"
-            android:textSize="28sp"
+            android:textSize="24sp"
             android:textStyle="bold" />
+
+        <!-- 状态及以下内容整体下移 -->
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="130dp" />
 
         <TextView
             android:id="@+id/status_detail"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center"
-            android:paddingTop="4dp"
+            android:gravity="start"
             android:text="@string/status_idle"
-            android:textSize="14sp" />
+            android:textSize="16sp" />
 
         <Button
             android:id="@+id/btn_main_connect"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:layout_marginTop="20dp"
+            android:layout_height="60dp"
+            android:layout_marginTop="18dp"
             android:text="@string/btn_connect_main"
             android:textSize="17sp"
             android:textStyle="bold" />
@@ -65,13 +66,13 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="12dp"
+            android:paddingTop="24dp"
             android:paddingBottom="4dp"
             android:text="高级选项"
             android:textSize="16sp"
             android:textStyle="bold" />
 
-        <!-- 高级选项：常显，不再折叠 -->
+        <!-- 高级选项：常显，按类别分组 -->
         <LinearLayout
             android:id="@+id/advanced_panel"
             android:layout_width="match_parent"
@@ -79,13 +80,23 @@
             android:orientation="vertical"
             android:visibility="visible">
 
+            <!-- ===== 显示 ===== -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="8dp"
+                android:paddingBottom="2dp"
+                android:text="显示"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
             <CheckBox
                 android:id="@+id/chk_show_preview"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:checked="true"
                 android:text="显示画面预览"
-                android:textSize="13sp" />
+                android:textSize="14sp" />
 
             <FrameLayout
                 android:id="@+id/preview_frame"
@@ -123,45 +134,31 @@
                 android:layout_height="wrap_content"
                 android:checked="true"
                 android:text="播放劫持声音（本机）"
-                android:textSize="13sp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingTop="2dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:paddingEnd="8dp"
-                    android:text="分辨率（下次连接生效）"
-                    android:textSize="12sp" />
-
-                <Spinner
-                    android:id="@+id/spinner_resolution"
-                    android:layout_width="0dp"
-                    android:layout_height="40dp"
-                    android:layout_weight="1"
-                    android:visibility="gone" />
-            </LinearLayout>
-
-
-            <Button
-                android:id="@+id/btn_clear_display_profile"
-                android:layout_width="wrap_content"
-                android:layout_height="40dp"
-                android:text="清除分辨率记忆"
-                android:textSize="12sp" />
-
+                android:textSize="14sp" />
 
             <CheckBox
                 android:id="@+id/chk_test_pattern"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/chk_test_pattern"
-                android:textSize="12sp" />
+                android:textSize="14sp" />
+
+            <!-- ===== 车机 ===== -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="16dp"
+                android:paddingBottom="2dp"
+                android:text="车机"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btn_clear_display_profile"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="清除分辨率记忆"
+                android:textSize="14sp" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -174,7 +171,7 @@
                     android:layout_height="wrap_content"
                     android:paddingEnd="8dp"
                     android:text="本机蓝牙地址"
-                    android:textSize="12sp" />
+                    android:textSize="14sp" />
 
                 <EditText
                     android:id="@+id/edit_bt_mac"
@@ -185,64 +182,35 @@
                     android:importantForAutofill="no"
                     android:inputType="text"
                     android:maxLines="1"
-                    android:textSize="12sp" />
+                    android:textSize="14sp" />
 
                 <Button
                     android:id="@+id/btn_save_bt_mac"
                     android:layout_width="wrap_content"
                     android:layout_height="40dp"
                     android:text="@string/btn_save_bt_mac"
-                    android:textSize="12sp" />
+                    android:textSize="14sp" />
             </LinearLayout>
 
-
-            <LinearLayout
+            <!-- ===== 日志 ===== -->
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal">
-
-                <Button
-                    android:id="@+id/btn_selftest"
-                    android:layout_width="0dp"
-                    android:layout_height="40dp"
-                    android:layout_weight="1"
-                    android:text="@string/btn_selftest"
-                    android:textSize="11sp" />
-
-                <Button
-                    android:id="@+id/btn_aa_bench"
-                    android:layout_width="0dp"
-                    android:layout_height="40dp"
-                    android:layout_weight="1"
-                    android:text="@string/btn_aa_bench"
-                    android:textSize="11sp" />
-
-                <Button
-                    android:id="@+id/btn_copy"
-                    android:layout_width="0dp"
-                    android:layout_height="40dp"
-                    android:layout_weight="1"
-                    android:text="@string/btn_copy_log"
-                    android:textSize="11sp" />
-
-                <Button
-                    android:id="@+id/btn_clear"
-                    android:layout_width="0dp"
-                    android:layout_height="40dp"
-                    android:layout_weight="1"
-                    android:text="@string/btn_clear"
-                    android:textSize="11sp" />
-            </LinearLayout>
+                android:paddingTop="16dp"
+                android:paddingBottom="2dp"
+                android:text="日志"
+                android:textSize="15sp"
+                android:textStyle="bold" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/hint_log_copy"
+                android:text="新日志不会自动滚动；点右下角 ↓ 到最底部"
                 android:textSize="10sp" />
 
             <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="150dp">
+                android:layout_height="170dp">
 
                 <ScrollView
                     android:id="@+id/log_scroll"
