@@ -123,3 +123,5 @@ adb shell run-as com.hobby.aa2carlife cat files/aa2cl.log
 ## 文档
 
 完整项目说明见 [docs/PROJECT.md](docs/PROJECT.md)。
+
+代码审计与清理建议见 [docs/CODE_AUDIT.md](docs/CODE_AUDIT.md)。
