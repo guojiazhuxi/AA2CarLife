@@ -825,7 +825,8 @@ class AaHeadUnitServer(
                     }
                 },
                 log = aapLog,
-                options = SessionOptions(sendPings = true),
+                // USB 下官方手机不主动发 ping，只回应车机的；协议版本按车机自己的版本回。
+                options = SessionOptions(sendPings = false, echoHeadUnitVersion = true),
             )
             sessions.add(session)
             session.start()
