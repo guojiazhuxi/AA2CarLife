@@ -2,6 +2,7 @@ package com.hobby.aa2carlife.aa
 
 import android.hardware.usb.UsbAccessory
 import android.hardware.usb.UsbManager
+import com.hobby.aa2carlife.diag.RingLog
 import net.prototux.aare.aap.Transport
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -30,6 +31,9 @@ class UsbAccessoryTransport(
     override val output: OutputStream = FileOutputStream(pfd.fileDescriptor)
 
     override fun close() {
+        val caller = Thread.currentThread().stackTrace.getOrNull(3)
+            ?.let { it.className.substringAfterLast('.') + "." + it.methodName + ":" + it.lineNumber } ?: "?"
+        RingLog.add("USB: UsbAccessoryTransport.close() 来源=$caller")
         runCatching { output.close() }
         runCatching { input.close() }
         runCatching { pfd.close() }

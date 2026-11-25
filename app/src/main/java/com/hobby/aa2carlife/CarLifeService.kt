@@ -353,6 +353,7 @@ class CarLifeService : Service() {
     }
 
     override fun onDestroy() {
+        RingLog.add("SERVICE: CarLifeService.onDestroy")
         unregisterUsbWatcher()
         stopSession("服务销毁")
         current = null

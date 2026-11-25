@@ -177,6 +177,11 @@ class MainActivity : Activity() {
     @Volatile
     private var aaVideoWidth = 1280
 
+    /** AA 车机两指的当前位置（已映射到 CarLife 画布），用于双指 MOVE。 */
+    private val aaPointerX = android.util.SparseIntArray()
+    private val aaPointerY = android.util.SparseIntArray()
+    private var aaDualLogBudget = 20
+
     @Volatile
     private var aaVideoHeight = 720
 
@@ -256,11 +261,11 @@ class MainActivity : Activity() {
         aaServer = sharedAaServer ?: AaHeadUnitServer(
             assets = applicationContext.assets,
             onLog = { RingLog.add(it) },
-            onTouch = { action, x, y, _ -> handleAaTouch(action, x, y) },
+            onTouch = { action, x, y, id -> handleAaTouch(action, x, y, id) },
         ).also { sharedAaServer = it }
         aaServer?.updateHandlers(
             log = { RingLog.add(it) },
-            touch = { action, x, y, _ -> handleAaTouch(action, x, y) },
+            touch = { action, x, y, id -> handleAaTouch(action, x, y, id) },
         )
         // 后台生成一帧 1280x720 占位画面：AA 连上但 CarLife 还没出帧时，先发给车机避免黑屏超时
         if (aaServer?.hasPlaceholder() != true) {
@@ -461,6 +466,7 @@ class MainActivity : Activity() {
 
     override fun onStop() {
         super.onStop()
+        RingLog.add("ACT: onStop")
         if (bound) {
             unbindService(connection)
             bound = false
@@ -469,6 +475,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        RingLog.add("ACT: onDestroy")
         // 关键：不 stop() AA 服务器。打开设置/切后台时 Activity 可能被销毁，
         // 一旦 stop 就会把车机投屏会话一起掐断。服务器由静态持有，界面重建后重新绑定回调。
         cancelAutoStartRetry()
@@ -1211,7 +1218,7 @@ class MainActivity : Activity() {
 
     // ---- M2 台架：AA 车机发来的触摸 → CarLife 触摸消息 ----
 
-    private fun handleAaTouch(action: Int, x: Int, y: Int) {
+    private fun handleAaTouch(action: Int, x: Int, y: Int, pointerId: Int) {
         val svc = service
         if (svc == null) {
             RingLog.add("AA: 收到触摸但 CarLife 会话未启动（action=$action x=$x y=$y）")
@@ -1225,14 +1232,46 @@ class MainActivity : Activity() {
         val safe = svc.carSafeArea
         val aw = (safe?.getOrNull(0)?.takeIf { it > 0 } ?: aaVideoWidth).coerceAtLeast(1)
         val ah = (safe?.getOrNull(1)?.takeIf { it > 0 } ?: aaVideoHeight).coerceAtLeast(1)
-        val px = (x.toLong() * tw / aw).toInt().coerceIn(0, tw - 1)
-        val py = (y.toLong() * th / ah).toInt().coerceIn(0, th - 1)
+        fun mx(v: Int) = (v.toLong() * tw / aw).toInt().coerceIn(0, tw - 1)
+        fun my(v: Int) = (v.toLong() * th / ah).toInt().coerceIn(0, th - 1)
+        val px = mx(x)
+        val py = my(y)
         when (action) {
-            0 -> svc.touchSingle(CarLifeProtocol.TOUCH_DOWN, px, py)
-            2 -> svc.touchSingle(CarLifeProtocol.TOUCH_MOVE, px, py)
-            1 -> svc.touchSingle(CarLifeProtocol.TOUCH_UP, px, py)
-            5 -> svc.touchPointerDown(px, py)
-            6 -> svc.touchOtherPointerUp(px, py)
+            0 -> {
+                aaPointerX.clear(); aaPointerY.clear()
+                aaPointerX.put(pointerId, px); aaPointerY.put(pointerId, py)
+                svc.touchSingle(CarLifeProtocol.TOUCH_DOWN, px, py)
+            }
+            5 -> {
+                aaPointerX.put(pointerId, px); aaPointerY.put(pointerId, py)
+                svc.touchPointerDown(px, py)
+                if (aaDualLogBudget > 0) { aaDualLogBudget--; RingLog.add("TOUCH: 第二指按下 id=$pointerId ($px,$py)") }
+            }
+            2 -> {
+                aaPointerX.put(pointerId, px); aaPointerY.put(pointerId, py)
+                if (aaPointerX.size() >= 2) {
+                    val id0 = aaPointerX.keyAt(0)
+                    val id1 = aaPointerX.keyAt(1)
+                    svc.touchMoveDual(
+                        aaPointerX.get(id0), aaPointerY.get(id0),
+                        aaPointerX.get(id1), aaPointerY.get(id1),
+                    )
+                    if (aaDualLogBudget > 0) {
+                        aaDualLogBudget--
+                        RingLog.add("TOUCH: 双指 MOVE id0=$id0 id1=$id1")
+                    }
+                } else {
+                    svc.touchSingle(CarLifeProtocol.TOUCH_MOVE, px, py)
+                }
+            }
+            6 -> {
+                aaPointerX.delete(pointerId); aaPointerY.delete(pointerId)
+                if (pointerId == 0) svc.touchPointerUp(px, py) else svc.touchOtherPointerUp(px, py)
+            }
+            1 -> {
+                svc.touchSingle(CarLifeProtocol.TOUCH_UP, px, py)
+                aaPointerX.clear(); aaPointerY.clear()
+            }
             else -> RingLog.add("AA: 未知触摸 action=$action")
         }
     }

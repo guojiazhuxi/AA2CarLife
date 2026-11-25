@@ -355,6 +355,9 @@ class AaHeadUnitServer(
     }
 
     fun stop() {
+        val caller = Thread.currentThread().stackTrace.getOrNull(3)
+            ?.let { it.className.substringAfterLast('.') + "." + it.methodName + ":" + it.lineNumber } ?: "?"
+        onLog("AA: stop() 调用来源=$caller")
         running = false
         stopTestPattern()
         streaming.set(false)
@@ -894,6 +897,9 @@ class AaHeadUnitServer(
 
     /** 停止所有 AAP 会话（USB accessory 断开或用户主动停止时调用）。 */
     fun stopSessions() {
+        val caller = Thread.currentThread().stackTrace.getOrNull(3)
+            ?.let { it.className.substringAfterLast('.') + "." + it.methodName + ":" + it.lineNumber } ?: "?"
+        onLog("AA: stopSessions() 调用来源=$caller")
         stopTestPattern()
         streaming.set(false)
         testRunning.set(false)
@@ -1100,6 +1106,14 @@ class AaHeadUnitServer(
                 val action = t.action.number
                 val pointers = t.pointerDataList
                 if (pointers.isNotEmpty()) {
+                    // 双指 MOVE：AA 的 TouchEvent 会带两根手指，必须都交给上层，
+                    // 否则第二根手指的位移被丢掉，车机上的捏合/双指手势会失效。
+                    if (action == 2 && pointers.size >= 2) {
+                        pointers.take(2).forEach { pd ->
+                            onTouch?.invoke(action, pd.x.toInt(), pd.y.toInt(), pd.pointerId.toInt())
+                        }
+                        return
+                    }
                     val p = if (action == 5 || action == 6) {
                         pointers.firstOrNull { it.pointerId != 0 } ?: pointers[0]
                     } else {
