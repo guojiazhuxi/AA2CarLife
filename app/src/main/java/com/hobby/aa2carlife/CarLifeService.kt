@@ -72,6 +72,15 @@ class CarLifeService : Service() {
     private var decoder: CarLifeVideoDecoder? = null
     private var audio: CarLifeAudio? = null
 
+    /** 是否在本机播放 CarLife 劫持声音（不影响转发给 AA）。 */
+    @Volatile
+    private var localAudioEnabled = true
+
+    private var lastMediaRate = 0
+    private var lastMediaChannels = 2
+    private var lastTtsRate = 0
+    private var lastTtsChannels = 1
+
     /** 缓存的 H.264 参数集/关键帧：界面切后台 Surface 重建后，靠它立刻恢复预览。 */
     @Volatile
     private var lastCodecConfig: ByteArray? = null
@@ -526,9 +535,11 @@ class CarLifeService : Service() {
                 d.onRotationFallback = { onPreviewRotationFallback?.invoke() }
             }
         }
-        val audioSink = CarLifeAudio(getSystemService(AudioManager::class.java))
-        audioSink.logOutputDevices()
-        audio = audioSink
+        audio = if (localAudioEnabled) {
+            CarLifeAudio(getSystemService(AudioManager::class.java)).also { it.logOutputDevices() }
+        } else {
+            null
+        }
         // 直接按车机安全区 1412x654 请求 CarLife 编码（比例与车机 2.16:1 一致，后续 1:1 补边到 1920x1080）
         // 固定 1080p 输出：引擎始终按车机安全区请求（1412x654），不再受手动分辨率影响
         val safe = carSafeArea
@@ -574,15 +585,23 @@ class CarLifeService : Service() {
             },
             onState = { reason -> RingLog.add("CARLIFE: 会话结束 - $reason") },
             onMediaFormat = { rate, channels ->
-                audioSink.onMediaFormat(rate, channels)
+                lastMediaRate = rate
+                lastMediaChannels = channels
+                if (localAudioEnabled) audio?.onMediaFormat(rate, channels)
                 aaAudioFormatSink?.invoke(rate, channels)
             },
             onMediaPcm = { data, length ->
-                audioSink.onMediaPcm(data, length)
+                if (localAudioEnabled) audio?.onMediaPcm(data, length)
                 aaAudioSink?.invoke(data, length)
             },
-            onTtsFormat = { rate, channels -> audioSink.onTtsFormat(rate, channels) },
-            onTtsPcm = { data, length -> audioSink.onTtsPcm(data, length) },
+            onTtsFormat = { rate, channels ->
+                lastTtsRate = rate
+                lastTtsChannels = channels
+                if (localAudioEnabled) audio?.onTtsFormat(rate, channels)
+            },
+            onTtsPcm = { data, length ->
+                if (localAudioEnabled) audio?.onTtsPcm(data, length)
+            },
         )
         client = c
         Thread({
@@ -665,6 +684,22 @@ class CarLifeService : Service() {
                     "铃声模式=${am.ringerMode}",
             )
         }
+    }
+
+    /** 本机播放开关：关闭时只停本地 AudioTrack，不影响转发给 AA。 */
+    fun setLocalAudioEnabled(enabled: Boolean) {
+        if (localAudioEnabled == enabled) return
+        localAudioEnabled = enabled
+        audio?.release()
+        audio = null
+        if (enabled) {
+            val a = CarLifeAudio(getSystemService(AudioManager::class.java))
+            a.logOutputDevices()
+            if (lastMediaRate > 0) a.onMediaFormat(lastMediaRate, lastMediaChannels)
+            if (lastTtsRate > 0) a.onTtsFormat(lastTtsRate, lastTtsChannels)
+            audio = a
+        }
+        RingLog.add("AUDIO: 本机劫持声音 " + (if (enabled) "开启" else "关闭"))
     }
 
     fun touchComposite(action: Int, x: Int, y: Int) {

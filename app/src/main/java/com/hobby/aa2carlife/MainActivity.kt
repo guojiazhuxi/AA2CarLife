@@ -26,6 +26,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
@@ -195,8 +196,9 @@ class MainActivity : Activity() {
 
     /** 一键连接主页控件 */
     private lateinit var btnMainConnect: Button
-    private lateinit var btnAdvancedToggle: Button
-    private lateinit var advancedPanel: View
+    private lateinit var chkShowPreview: CheckBox
+    private lateinit var previewFrame: FrameLayout
+    private lateinit var chkLocalAudio: CheckBox
     private lateinit var hintExtra: TextView
     private lateinit var spinnerResolution: Spinner
 
@@ -231,6 +233,10 @@ class MainActivity : Activity() {
             surfaceView.setVideoSize(service?.previewWidth ?: 1412, service?.previewHeight ?: 654)
             service?.onResolutionMismatch = { msg -> showReconnectHint(msg) }
             service?.rotate90 = false
+            service?.setLocalAudioEnabled(
+                getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
+                    .getBoolean("local_audio_enabled", true),
+            )
             // M3：把 CarLife 视频/音频转给 AA 手机端（只在台架连接时有用）
             service?.aaVideoSink = { frame -> aaServer?.sendVideoFrame(frame) }
             service?.aaAudioSink = { data, length -> aaServer?.sendAudioPcm(data, length) }
@@ -266,8 +272,9 @@ class MainActivity : Activity() {
         chkCptclPipeline = findViewById(R.id.chk_cptcl_pipeline)
         chkRotate90 = findViewById(R.id.chk_rotate90)
         btnMainConnect = findViewById(R.id.btn_main_connect)
-        btnAdvancedToggle = findViewById(R.id.btn_advanced_toggle)
-        advancedPanel = findViewById(R.id.advanced_panel)
+        chkShowPreview = findViewById(R.id.chk_show_preview)
+        previewFrame = findViewById(R.id.preview_frame)
+        chkLocalAudio = findViewById(R.id.chk_local_audio)
         hintExtra = findViewById(R.id.hint_extra)
         spinnerResolution = findViewById(R.id.spinner_resolution)
         val resolutionOptions = arrayOf("自动（跟随车机）", "1280×720", "1920×1080", "800×480（引擎可能回落）")
@@ -299,6 +306,23 @@ class MainActivity : Activity() {
         )
         val savedFirstConfig = appPrefs.getInt("first_config_preference", 0).coerceIn(0, 3)
         spinnerFirstConfig.setSelection(savedFirstConfig)
+        // 预览开关：显示区域放在高级选项里，由用户决定开不开
+        chkShowPreview.isChecked = appPrefs.getBoolean("show_preview", true)
+        val hintPreview = findViewById<TextView>(R.id.hint_preview)
+        previewFrame.visibility = if (chkShowPreview.isChecked) View.VISIBLE else View.GONE
+        hintPreview.visibility = previewFrame.visibility
+        chkShowPreview.setOnCheckedChangeListener { _, checked ->
+            appPrefs.edit().putBoolean("show_preview", checked).apply()
+            previewFrame.visibility = if (checked) View.VISIBLE else View.GONE
+            hintPreview.visibility = previewFrame.visibility
+            RingLog.add("UI: 画面预览 " + (if (checked) "开启" else "关闭"))
+        }
+        // 本机劫持声音开关
+        chkLocalAudio.isChecked = appPrefs.getBoolean("local_audio_enabled", true)
+        chkLocalAudio.setOnCheckedChangeListener { _, checked ->
+            appPrefs.edit().putBoolean("local_audio_enabled", checked).apply()
+            service?.setLocalAudioEnabled(checked)
+        }
         spinnerFirstConfig.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
                 appPrefs.edit().putInt("first_config_preference", position).apply()
@@ -309,7 +333,13 @@ class MainActivity : Activity() {
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
         }
         // 日志允许长按选择复制（高级区另有"复制日志"按钮一键复制全部）
-        logText.setTextIsSelectable(true)
+        // 日志不再设为可选中，避免抢焦点把外层 ScrollView 滚到日志；复制用按钮。
+        logText.isFocusable = false
+        logText.isFocusableInTouchMode = false
+        logScroll.isFocusable = false
+        findViewById<ScrollView>(R.id.root_scroll).post {
+            findViewById<ScrollView>(R.id.root_scroll).scrollTo(0, 0)
+        }
         RingLog.listener = { line ->
             runOnUiThread {
                 appendLog(line)
@@ -402,12 +432,6 @@ class MainActivity : Activity() {
 
         // ===== 一键连接：唯一主按钮 =====
         btnMainConnect.setOnClickListener { onMainConnectClick() }
-        btnAdvancedToggle.setOnClickListener {
-            val show = advancedPanel.visibility != View.VISIBLE
-            advancedPanel.visibility = if (show) View.VISIBLE else View.GONE
-            btnAdvancedToggle.text =
-                getString(if (show) R.string.btn_advanced_hide else R.string.btn_advanced)
-        }
         findViewById<Button>(R.id.btn_copy).setOnClickListener { copyLogToClipboard() }
         findViewById<Button>(R.id.btn_clear).setOnClickListener {
             RingLog.clear()

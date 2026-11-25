@@ -22,7 +22,7 @@
     <string name="btn_aa_bench">AA台架</string>
     <string name="chk_tap_single_click">单击补发</string>
     <string name="btn_selftest">自测捏合</string>
-    <string name="hint_log_copy">日志可长按选择；复制后可直接发给我</string>
+    <string name="hint_log_copy">日志可用上方「复制日志」按钮复制后发给我</string>
     <string name="hint_video_landscape">画面按 CarLife 实际比例显示（不拉伸）</string>
 
     <!-- 一键连接界面（极简主页） -->

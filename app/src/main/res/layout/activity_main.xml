@@ -1,277 +1,286 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root_scroll"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fillViewport="true"
     android:fitsSystemWindows="true"
-    android:orientation="vertical"
-    android:padding="8dp">
+    android:padding="10dp">
 
-    <!-- 状态卡：一眼看清当前处于哪一步 -->
-    <TextView
-        android:id="@+id/status_text"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="#22000000"
-        android:padding="10dp"
-        android:text="@string/status_idle"
-        android:textSize="18sp"
-        android:textStyle="bold" />
-
-    <!-- CarLife 画面预览 -->
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:layout_marginTop="6dp"
-        android:background="#000000">
-
-        <com.hobby.aa2carlife.ui.RotateLayout
-            android:id="@+id/surface_view"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_gravity="center"
-            android:clickable="true"
-            android:focusable="true">
-
-            <TextureView
-                android:id="@+id/preview_texture"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent" />
-        </com.hobby.aa2carlife.ui.RotateLayout>
-    </FrameLayout>
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:text="@string/hint_video_landscape"
-        android:textSize="10sp" />
-
-    <!-- 唯一主按钮：一键连接 / 断开 -->
-    <Button
-        android:id="@+id/btn_main_connect"
-        android:layout_width="match_parent"
-        android:layout_height="64dp"
-        android:layout_marginTop="8dp"
-        android:text="@string/btn_connect_main"
-        android:textSize="18sp"
-        android:textStyle="bold" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:paddingTop="4dp"
-        android:text="@string/hint_need_carlife"
-        android:textSize="11sp" />
-
-    <TextView
-        android:id="@+id/hint_extra"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:paddingTop="2dp"
-        android:textColor="#B06A00"
-        android:textSize="11sp"
-        android:visibility="gone" />
-
-    <!-- 高级选项开关 -->
-    <Button
-        android:id="@+id/btn_advanced_toggle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:text="@string/btn_advanced"
-        android:textSize="12sp" />
-
-    <!-- 高级选项面板（默认折叠） -->
     <LinearLayout
-        android:id="@+id/advanced_panel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:visibility="gone">
+        android:orientation="vertical">
 
-        <LinearLayout
+        <!-- 顶部状态 -->
+        <TextView
+            android:id="@+id/status_text"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingTop="4dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingEnd="8dp"
-                android:text="分辨率（下次连接生效）"
-                android:textSize="12sp" />
-
-            <Spinner
-                android:id="@+id/spinner_resolution"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingTop="4dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingEnd="8dp"
-                android:text="首次连接（无记忆时）"
-                android:textSize="12sp" />
-
-            <Spinner
-                android:id="@+id/spinner_first_config"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1" />
-        </LinearLayout>
+            android:background="#22000000"
+            android:padding="12dp"
+            android:text="@string/status_idle"
+            android:textSize="18sp"
+            android:textStyle="bold" />
 
         <Button
-            android:id="@+id/btn_clear_display_profile"
-            android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:layout_marginTop="2dp"
-            android:text="清除分辨率记忆"
-            android:textSize="12sp" />
+            android:id="@+id/btn_main_connect"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="10dp"
+            android:text="@string/btn_connect_main"
+            android:textSize="17sp"
+            android:textStyle="bold" />
 
-        <LinearLayout
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:gravity="center"
+            android:paddingTop="4dp"
+            android:text="@string/hint_need_carlife"
+            android:textSize="11sp" />
 
+        <TextView
+            android:id="@+id/hint_extra"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingTop="2dp"
+            android:textColor="#B06A00"
+            android:textSize="11sp"
+            android:visibility="gone" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="12dp"
+            android:paddingBottom="4dp"
+            android:text="高级选项"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <!-- 高级选项：常显，不再折叠 -->
+        <LinearLayout
+            android:id="@+id/advanced_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="visible">
+
+            <CheckBox
+                android:id="@+id/chk_show_preview"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="显示画面预览"
+                android:textSize="13sp" />
+
+            <FrameLayout
+                android:id="@+id/preview_frame"
+                android:layout_width="match_parent"
+                android:layout_height="220dp"
+                android:layout_marginTop="4dp"
+                android:background="#000000">
+
+                <com.hobby.aa2carlife.ui.RotateLayout
+                    android:id="@+id/surface_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_gravity="center"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <TextureView
+                        android:id="@+id/preview_texture"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent" />
+                </com.hobby.aa2carlife.ui.RotateLayout>
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/hint_preview"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="@string/hint_video_landscape"
+                android:textSize="10sp" />
+
+            <CheckBox
+                android:id="@+id/chk_local_audio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="播放劫持声音（本机）"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingTop="2dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingEnd="8dp"
+                    android:text="分辨率（下次连接生效）"
+                    android:textSize="12sp" />
+
+                <Spinner
+                    android:id="@+id/spinner_resolution"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingEnd="8dp"
+                    android:text="首次连接（无记忆时）"
+                    android:textSize="12sp" />
+
+                <Spinner
+                    android:id="@+id/spinner_first_config"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btn_clear_display_profile"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="清除分辨率记忆"
+                android:textSize="12sp" />
 
             <CheckBox
                 android:id="@+id/chk_rotate90"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:checked="false"
                 android:text="@string/chk_rotate90"
                 android:textSize="12sp" />
 
-
-        </LinearLayout>
-        <CheckBox
-            android:id="@+id/chk_test_pattern"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/chk_test_pattern"
-            android:textSize="12sp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <EditText
-                android:id="@+id/edit_bt_mac"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:hint="@string/hint_bt_mac"
-                android:importantForAutofill="no"
-                android:inputType="text"
-                android:maxLines="1"
-                android:textSize="12sp" />
-
-            <Button
-                android:id="@+id/btn_save_bt_mac"
-                android:layout_width="wrap_content"
-                android:layout_height="40dp"
-                android:text="@string/btn_save_bt_mac"
-                android:textSize="12sp" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
             <CheckBox
-                android:id="@+id/chk_official_gesture"
+                android:id="@+id/chk_test_pattern"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:checked="true"
-                android:text="@string/chk_official_gesture"
+                android:text="@string/chk_test_pattern"
                 android:textSize="12sp" />
 
-            <CheckBox
-                android:id="@+id/chk_cptcl_pipeline"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checked="true"
-                android:text="@string/chk_cptcl_pipeline"
-                android:textSize="12sp" />
-
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/btn_selftest"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:text="@string/btn_selftest"
-                android:textSize="11sp" />
-
-            <Button
-                android:id="@+id/btn_aa_bench"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:text="@string/btn_aa_bench"
-                android:textSize="11sp" />
-
-            <Button
-                android:id="@+id/btn_copy"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:text="@string/btn_copy_log"
-                android:textSize="11sp" />
-
-            <Button
-                android:id="@+id/btn_clear"
-                android:layout_width="0dp"
-                android:layout_height="40dp"
-                android:layout_weight="1"
-                android:text="@string/btn_clear"
-                android:textSize="11sp" />
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/hint_log_copy"
-            android:textSize="10sp" />
-
-        <ScrollView
-            android:id="@+id/log_scroll"
-            android:layout_width="match_parent"
-            android:layout_height="130dp"
-            android:background="#11000000">
-
-            <TextView
-                android:id="@+id/log_text"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:fontFamily="monospace"
-                android:padding="4dp"
-                android:textSize="9sp" />
-        </ScrollView>
-    </LinearLayout>
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-</LinearLayout>
+                <EditText
+                    android:id="@+id/edit_bt_mac"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:hint="@string/hint_bt_mac"
+                    android:importantForAutofill="no"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btn_save_bt_mac"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:text="@string/btn_save_bt_mac"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <CheckBox
+                    android:id="@+id/chk_official_gesture"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="true"
+                    android:text="@string/chk_official_gesture"
+                    android:textSize="12sp" />
+
+                <CheckBox
+                    android:id="@+id/chk_cptcl_pipeline"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="true"
+                    android:text="@string/chk_cptcl_pipeline"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btn_selftest"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:text="@string/btn_selftest"
+                    android:textSize="11sp" />
+
+                <Button
+                    android:id="@+id/btn_aa_bench"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:text="@string/btn_aa_bench"
+                    android:textSize="11sp" />
+
+                <Button
+                    android:id="@+id/btn_copy"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:text="@string/btn_copy_log"
+                    android:textSize="11sp" />
+
+                <Button
+                    android:id="@+id/btn_clear"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:text="@string/btn_clear"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/hint_log_copy"
+                android:textSize="10sp" />
+
+            <ScrollView
+                android:id="@+id/log_scroll"
+                android:layout_width="match_parent"
+                android:layout_height="150dp"
+                android:background="#11000000">
+
+                <TextView
+                    android:id="@+id/log_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:padding="4dp"
+                    android:textSize="9sp" />
+            </ScrollView>
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
