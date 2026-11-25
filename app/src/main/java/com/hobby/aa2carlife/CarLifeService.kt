@@ -101,17 +101,9 @@ class CarLifeService : Service() {
     @Volatile
     private var surface: Surface? = null
 
-    /** 视频显示是否旋转 90°（由界面开关设置，下次启动会话时生效）。 */
-    @Volatile
-    var rotate90 = false
-
     /** CarLife 实际码流与车机安全区不一致时提示（App 负责弹 UI）。 */
     @Volatile
     var onResolutionMismatch: ((String) -> Unit)? = null
-
-    /** KEY_ROTATION 不支持、预览被迫退回横屏时通知 UI。 */
-    @Volatile
-    var onPreviewRotationFallback: (() -> Unit)? = null
 
     /** 原始 CarLife 码流的 SPS/PPS 与关键帧（预览解码器重建时用，避免喂错成转码后的 1920x1088）。 */
     private var lastRawCodecConfig: ByteArray? = null
@@ -479,8 +471,7 @@ class CarLifeService : Service() {
             // 并把缓存的 SPS/PPS + 关键帧喂进去，避免"回来黑屏等下一个关键帧"。
             if (client?.isRunning() == true) {
                 decoder?.release()
-                val d = CarLifeVideoDecoder(s, rotate90, lastRawCodecConfig)
-                d.onRotationFallback = { onPreviewRotationFallback?.invoke() }
+                val d = CarLifeVideoDecoder(s, cachedConfig = lastRawCodecConfig)
                 decoder = d
                 lastRawKeyFrame?.let { runCatching { d.submit(it, 0) } }
                 RingLog.add(
@@ -530,11 +521,7 @@ class CarLifeService : Service() {
         lastKeyFrame = null
         lastRawCodecConfig = null
         lastRawKeyFrame = null
-        decoder = surface?.let { s ->
-            CarLifeVideoDecoder(s, rotate90).also { d ->
-                d.onRotationFallback = { onPreviewRotationFallback?.invoke() }
-            }
-        }
+        decoder = surface?.let { s -> CarLifeVideoDecoder(s) }
         audio = if (localAudioEnabled) {
             CarLifeAudio(getSystemService(AudioManager::class.java)).also { it.logOutputDevices() }
         } else {
@@ -554,8 +541,7 @@ class CarLifeService : Service() {
                     "，来自上次车机记忆）"
                 } else {
                     "）"
-                } +
-                (if (rotate90) "，显示旋转 90°" else ""),
+                },
         )
         transcode?.release()
         transcode = buildTranscode()

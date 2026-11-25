@@ -13,13 +13,10 @@ import java.nio.ByteBuffer
  * 其中第一个关键帧携带 SPS/PPS。这里在收到 SPS+PPS 后创建 MediaCodec，
  * 之后把每个访问单元原样喂给解码器，渲染到 SurfaceView。
  *
- * [rotate90] = true 时给解码器设置 KEY_ROTATION=90（顺时针旋转到 Surface），
- * 配合 SurfaceView 的 9:16 比例实现「旋转 90° 最大填充」；个别编解码器不支持
- * KEY_ROTATION 时自动降级为不旋转，并在日志里标注。
+ * 固定横向解码，不再做 KEY_ROTATION。
  */
 class CarLifeVideoDecoder(
     private val surface: Surface,
-    private val rotate90: Boolean = false,
     /** 缓存的 SPS/PPS（Annex-B）：切后台再回来时，后续帧不带参数集也能立即重建解码器。 */
     private val cachedConfig: ByteArray? = null,
 ) {
@@ -35,18 +32,9 @@ class CarLifeVideoDecoder(
     var height = 0
         private set
 
-    /** KEY_ROTATION 是否真的设置成功（用于日志/排查）。 */
-    @Volatile
-    var rotationApplied = false
-        private set
-
     /** 配置/解码失败后停止重试，避免每帧重建成死循环。 */
     @Volatile
     private var failed = false
-
-    /** KEY_ROTATION 降级为普通解码时通知（调用方把 View 比例改回横屏）。 */
-    @Volatile
-    var onRotationFallback: (() -> Unit)? = null
 
     private var waitingSpsLogged = false
 
@@ -90,44 +78,12 @@ class CarLifeVideoDecoder(
         val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, 1280, 720)
         format.setByteBuffer("csd-0", ByteBuffer.wrap(sps))
         format.setByteBuffer("csd-1", ByteBuffer.wrap(pps))
-        if (rotate90) format.setInteger(MediaFormat.KEY_ROTATION, 90)
 
         val c = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
-        try {
-            c.configure(format, surface, null, 0)
-            rotationApplied = rotate90
-        } catch (e: Exception) {
-            if (rotate90) {
-                logException("KEY_ROTATION 配置失败，尝试普通解码", e)
-                runCatching { c.release() }
-                val plain = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, 1280, 720)
-                plain.setByteBuffer("csd-0", ByteBuffer.wrap(sps))
-                plain.setByteBuffer("csd-1", ByteBuffer.wrap(pps))
-                val c2 = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
-                try {
-                    c2.configure(plain, surface, null, 0)
-                    c2.start()
-                } catch (e2: Exception) {
-                    logException("普通解码也失败，停止重试（避免死循环）", e2)
-                    runCatching { c2.release() }
-                    failed = true
-                    onRotationFallback?.invoke()
-                    return false
-                }
-                codec = c2
-                rotationApplied = false
-                RingLog.add("VIDEO: 找到 SPS(${sps.size}B)/PPS(${pps.size}B)，初始化解码器（未旋转）")
-                onRotationFallback?.invoke()
-                return true
-            }
-            throw e
-        }
+        c.configure(format, surface, null, 0)
         c.start()
         codec = c
-        RingLog.add(
-            "VIDEO: 找到 SPS(${sps.size}B)/PPS(${pps.size}B)，初始化解码器" +
-                if (rotate90) "（旋转 90°）" else "",
-        )
+        RingLog.add("VIDEO: 找到 SPS(${sps.size}B)/PPS(${pps.size}B)，初始化解码器")
         return true
     }
 
@@ -141,12 +97,7 @@ class CarLifeVideoDecoder(
                     val f = c.outputFormat
                     width = f.getInteger(MediaFormat.KEY_WIDTH)
                     height = f.getInteger(MediaFormat.KEY_HEIGHT)
-                    val rotation = if (f.containsKey(MediaFormat.KEY_ROTATION)) {
-                        f.getInteger(MediaFormat.KEY_ROTATION)
-                    } else {
-                        0
-                    }
-                    RingLog.add("VIDEO: 解码输出 ${width}x$height rotation=$rotation")
+                    RingLog.add("VIDEO: 解码输出 ${width}x$height")
                 }
 
                 else -> return

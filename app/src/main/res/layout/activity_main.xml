@@ -82,7 +82,7 @@
                 android:layout_marginTop="4dp"
                 android:background="#000000">
 
-                <com.hobby.aa2carlife.ui.RotateLayout
+                <com.hobby.aa2carlife.ui.PreviewLayout
                     android:id="@+id/surface_view"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
@@ -94,7 +94,7 @@
                         android:id="@+id/preview_texture"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent" />
-                </com.hobby.aa2carlife.ui.RotateLayout>
+                </com.hobby.aa2carlife.ui.PreviewLayout>
             </FrameLayout>
 
             <TextView
@@ -162,12 +162,6 @@
                 android:text="清除分辨率记忆"
                 android:textSize="12sp" />
 
-            <CheckBox
-                android:id="@+id/chk_rotate90"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/chk_rotate90"
-                android:textSize="12sp" />
 
             <CheckBox
                 android:id="@+id/chk_test_pattern"

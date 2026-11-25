@@ -37,7 +37,7 @@ import com.hobby.aa2carlife.aa.AaHeadUnitServer
 import com.hobby.aa2carlife.aa.AaTouchPoint
 import com.hobby.aa2carlife.aa.PlaceholderVideo
 import com.hobby.aa2carlife.diag.RingLog
-import com.hobby.aa2carlife.ui.RotateLayout
+import com.hobby.aa2carlife.ui.PreviewLayout
 
 /** 捏合量 → 上下拖动量的放大系数（1.5 倍；方向若反了改成 -1.5）。 */
 private const val TRANSLATE_GAIN = 1.5f
@@ -158,7 +158,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private lateinit var surfaceView: RotateLayout
+    private lateinit var surfaceView: PreviewLayout
     private lateinit var textureView: TextureView
     private var previewSurface: Surface? = null
     private lateinit var statusText: TextView
@@ -166,7 +166,6 @@ class MainActivity : Activity() {
     private lateinit var logScroll: ScrollView
     private lateinit var chkOfficialGesture: CheckBox
     private lateinit var chkCptclPipeline: CheckBox
-    private lateinit var chkRotate90: CheckBox
     private var aaServer: AaHeadUnitServer? = null
 
     /** USB 车机已接入、但还没启动 CarLife 会话（等 Service 绑定后自动启动）。 */
@@ -232,7 +231,6 @@ class MainActivity : Activity() {
             service = local.service()
             surfaceView.setVideoSize(service?.previewWidth ?: 1412, service?.previewHeight ?: 654)
             service?.onResolutionMismatch = { msg -> showReconnectHint(msg) }
-            service?.rotate90 = false
             service?.setLocalAudioEnabled(
                 getSharedPreferences(CarLifeService.PREFS, MODE_PRIVATE)
                     .getBoolean("local_audio_enabled", true),
@@ -270,7 +268,6 @@ class MainActivity : Activity() {
         logScroll = findViewById(R.id.log_scroll)
         chkOfficialGesture = findViewById(R.id.chk_official_gesture)
         chkCptclPipeline = findViewById(R.id.chk_cptcl_pipeline)
-        chkRotate90 = findViewById(R.id.chk_rotate90)
         btnMainConnect = findViewById(R.id.btn_main_connect)
         chkShowPreview = findViewById(R.id.chk_show_preview)
         previewFrame = findViewById(R.id.preview_frame)
@@ -459,13 +456,6 @@ class MainActivity : Activity() {
             RingLog.add("TOUCH: 官方手势 ${if (checked) "开启" else "关闭"}（点击=SINGLE_CLICK，拖动=DOWN/MOVE/UP）")
         }
         cptclPipeline = chkCptclPipeline.isChecked
-        // 预览旋转用 TextureView 变换：只改 View 比例/rotation，不重建解码器、不碰 KEY_ROTATION
-        chkRotate90.isChecked = false
-        surfaceView.rotate90 = false
-        chkRotate90.setOnCheckedChangeListener { _, checked ->
-            surfaceView.rotate90 = checked
-            RingLog.add("VIDEO: 预览旋转90° " + (if (checked) "开启" else "关闭") + "（TextureView 变换，不重建解码器）")
-        }
         // 单击补发/MOVE索引/新触摸实验项已移除；单指走官方手势，双指回退 CPTCL。
 
         findViewById<Button>(R.id.btn_clear_display_profile).setOnClickListener {
@@ -656,7 +646,6 @@ class MainActivity : Activity() {
         }
         requestNotificationPermission()
         ensureBatteryOptimizationExempt()
-        svc.rotate90 = false
         setStatus(getString(R.string.status_connecting))
         svc.startSession()
         aaServer?.resumeVideoForCarLifeIfPaused()
@@ -679,7 +668,6 @@ class MainActivity : Activity() {
         }
         requestNotificationPermission()
         ensureBatteryOptimizationExempt()
-        svc.rotate90 = false
         setStatus(getString(R.string.status_connecting))
         svc.startSession()
         aaServer?.resumeVideoForCarLifeIfPaused()
@@ -1027,25 +1015,16 @@ class MainActivity : Activity() {
         val viewWidth = view.width.coerceAtLeast(1)
         val viewHeight = view.height.coerceAtLeast(1)
 
-        val rotated = surfaceView.rotate90
         if (!touchMapLogged) {
             touchMapLogged = true
-            RingLog.add("TOUCHMAP: view=${viewWidth}x$viewHeight target=${targetWidth}x$targetHeight rotated=$rotated")
+            RingLog.add("TOUCHMAP: view=${viewWidth}x$viewHeight target=${targetWidth}x$targetHeight")
         }
 
-        fun x(index: Int): Int = if (!rotated) {
+        fun x(index: Int): Int =
             (event.getX(index) * targetWidth / viewWidth).toInt().coerceIn(0, targetWidth - 1)
-        } else {
-            // 顺时针 90°：显示 (dx,dy) 与视频 (vx,vy) 的关系是 dx = 视频高 - vy、dy = vx
-            (event.getY(index) * targetWidth / viewHeight).toInt().coerceIn(0, targetWidth - 1)
-        }
 
-        fun y(index: Int): Int = if (!rotated) {
+        fun y(index: Int): Int =
             (event.getY(index) * targetHeight / viewHeight).toInt().coerceIn(0, targetHeight - 1)
-        } else {
-            val dx = (event.getX(index) * targetHeight / viewWidth).toInt()
-            (targetHeight - 1 - dx).coerceIn(0, targetHeight - 1)
-        }
 
         // ---- 官方旧模式单指手势（对齐 GestureListenerImp） ----
         // 点击只发 SINGLE_CLICK；拖动才补 DOWN + MOVE，150ms 无移动补 UP。
