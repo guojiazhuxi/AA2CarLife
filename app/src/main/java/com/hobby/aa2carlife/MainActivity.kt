@@ -330,7 +330,8 @@ class MainActivity : Activity() {
             }
 
             override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, width: Int, height: Int) {
-                surfaceView.requestLayout()
+                // 这里绝对不能 requestLayout：TextureView 尺寸变化会再次触发该回调，
+                // 形成 measure/layout 死循环，把 UI 线程和整机输入拖死。
             }
 
             override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
