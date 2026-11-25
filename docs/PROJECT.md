@@ -62,6 +62,18 @@ app/src/main/assets/aap/phone_key.pem
 
 仓库包含从 Android Auto 客户端提取的公开 AA 身份材料，方便复现；它们不是本项目作者的个人证书，但仍受 Google 服务条款约束。
 如不想使用仓库内材料，可替换成自己合法获得的证书。没有证书时 App 能编译，但 AA 会话无法建立。
+
+当前文件实测有效期：
+
+| 证书 | Subject | 有效期（UTC） |
+|---|---|---|
+| CarService 叶证书 | `O=CarService` | 2014-07-04 → **2027-02-17 19:01:30** |
+| Google Automotive Link 根证书 | `O=Google Automotive Link` | 2014-06-06 → 2044-06-05 18:28:19 |
+
+提取工具：AARE 的 `extract_key.py`（https://github.com/prototux/AARE#aa-key-extraction）。
+它从 Android Auto APK/APKM 中离线提取 `carservice_cert.pem`、`carservice_key.pem`、`gal_ca.pem`；
+AARE 也可从 [iscle/android-auto-certificates](https://github.com/iscle/android-auto-certificates)
+下载最新提取结果。叶证书到期后车机可能返回 `CERT_EXPIRED` / status -24，需要更新。
 无线 AA 由 aap/ 的 WPP/Wi-Fi 路径支持，当前主要在 USB 台架验证。
 
 ### 4.2 服务发现

@@ -84,6 +84,29 @@ app/src/main/assets/aap/phone_key.pem     # 对应私钥
 - 它们仍受 Google 服务条款约束，仅供个人研究，使用风险自担；
 - 如果不想使用仓库内的材料，可以替换成你自己合法获得的证书；不要混用来源不明的证书。
 
+### 有效期（按仓库内当前文件实测）
+
+| 文件 | 证书 | Subject | 有效期（UTC） |
+|---|---|---|---|
+| `phone_chain.pem` | CarService 叶证书 | `O=CarService` | 2014-07-04 → **2027-02-17 19:01:30** |
+| `phone_chain.pem` | Google Automotive Link 根证书 | `O=Google Automotive Link` | 2014-06-06 → 2044-06-05 18:28:19 |
+
+> 叶证书在 **2027-02-17 19:01:30 UTC** 到期；到期后部分车机可能拒绝连接
+> （日志可能出现 `CERT_EXPIRED` / status -24）。不同 Android Auto 版本提取出的证书日期可能不同，以实际文件为准。
+
+### 从 Android Auto APK 提取
+
+支持提取的是 **[AARE](https://github.com/prototux/AARE)** 项目：
+
+- AARE 的 `extract_key.py` 可从 Android Auto APK/APKM/APKS/XAPK（包名
+  `com.google.android.projection.gearhead`）离线提取 CarService 证书和 RSA 私钥；
+- 输出 `carservice_cert.pem`、`carservice_key.pem`、`gal_ca.pem`；
+- 仓库里的 `phone_chain.pem` 即叶证书 + 根证书链，`phone_key.pem` 为对应私钥；
+- AARE 也支持一键下载 [iscle/android-auto-certificates](https://github.com/iscle/android-auto-certificates)
+  从最新 AA 版本提取的材料。
+
+AARE 官方说明：https://github.com/prototux/AARE#aa-key-extraction
+
 ## 使用
 
 1. 打开 App，在高级选项里填写本机蓝牙地址（部分系统会脱敏 BT MAC，需要手填）。
