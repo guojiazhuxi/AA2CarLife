@@ -261,6 +261,9 @@ abstract class MediaSinkChannel(service: Service, name: String, private val code
         }
     }
 
+    /** Forgets the messages in flight, for when the head unit has dropped them without acking. */
+    protected fun resetWindow() = unacked.set(0)
+
     /** Whether the in-flight window has room for one more message. */
     protected fun canSend() = ackless || unacked.get() < maxUnacked
 
@@ -353,6 +356,14 @@ class VideoChannel(
     @Volatile var focusHeard = false
         private set
 
+    /** The encoder has been started once for this configuration; later focus gains only restart the stream. */
+    private var encoderStarted = false
+    /** Times the stream was stopped for a focus loss and started again (diagnostics). */
+    @Volatile var restarts = 0
+        private set
+    /** When the last ack came (or the window was last reset), for the stall check in sendFrame. */
+    private var lastAckAt = System.nanoTime()
+
     private class Pending(val buf: ByteArray, val offset: Int, val length: Int, val ptsUs: Long, val key: Boolean, val recycle: (ByteArray) -> Unit)
     private val pending = ArrayDeque<Pending>()
     private val lock = Any()
@@ -432,12 +443,12 @@ class VideoChannel(
         chosen = configs[index]
         startIndex = index
         focusHeard = false
+        encoderStarted = false
         synchronized(lock) { sentAt.clear() }
-        startStream(index)
-        listener.onVideoStart(index, configs[index])
         earlyUiRequest?.let { earlyUiRequest = null; onUiConfigRequest(it) }
-        // Ask to be shown; head units answer with a focus notification. At the data priority so
-        // it follows START: the head unit must not be asked to show a stream it hasn't started.
+        // Ask to be shown; head units answer with a focus notification. Do NOT start the stream
+        // here: a VW MIB head unit shows nothing (and acks nothing) when video starts before the
+        // focus grant. Start it in setFocus once the car says it is projecting (AARE PR #162).
         send(MediaMsg.VIDEO_FOCUS_REQUEST, VideoFocusRequestNotification.newBuilder()
             .setMode(VideoFocusMode.VIDEO_FOCUS_PROJECTED).setReason(VideoFocusReason.UNKNOWN).build(), dataPriority)
     }
@@ -493,24 +504,43 @@ class VideoChannel(
     private fun sendUiConfigReply(config: UiConfig) =
         send(MediaMsg.UPDATE_UI_CONFIG_REPLY, UpdateUiConfigReply.newBuilder().setUiConfig(config).build(), dataPriority)
 
+    /**
+     * For a head unit that never answers the focus request: starts sending as if it had been
+     * granted, since it may be waiting for video before it shows anything. An explicit answer,
+     * even a refusal, always wins. Returns whether it applied.
+     */
+    fun assumeProjectedIfUnanswered(): Boolean {
+        if (focusHeard || chosen == null) return false
+        setFocus(VideoFocusMode.VIDEO_FOCUS_PROJECTED)
+        return true
+    }
+
     private fun setFocus(mode: VideoFocusMode) {
         focusHeard = true
         val projected = isProjected(mode)
         val changed = projected != focused
         focused = projected
-        if (projected) {
-            // Some head units throw their decoder away while they show their own screen (the
-            // reverse camera on LG GEN5, #109) and only build a new one on a START: if we stopped
-            // the stream for a full native focus, start a fresh session now so the picture returns.
-            if (!started) startStream(startIndex)
-            synchronized(lock) { needKeyFrame = true; while (pending.isNotEmpty()) pending.removeFirst().let { it.recycle(it.buf) } }
-            // Resend the codec config after the (re)start, the same as at connection.
-            codecConfig?.let { sendCodecConfigData(it, 0, it.size, Priority.VIDEO) }
-        } else if (mode == VideoFocusMode.VIDEO_FOCUS_NATIVE) {
+        if (!projected && mode == VideoFocusMode.VIDEO_FOCUS_NATIVE && started && encoderStarted) {
             // Full native: the head unit shows its own screen (reverse, "exit to car"). Stop the
             // stream so it can tear its decoder down cleanly; we re-START when projection returns.
             // A transient native (a brief overlay) keeps the stream open; we just stop feeding it.
             stopStream()
+        }
+        if (projected && !started) {
+            val config = chosen ?: return
+            startStream(startIndex)
+            if (encoderStarted) restarts++
+            else { encoderStarted = true; listener.onVideoStart(startIndex, config) }
+        }
+        if (changed) {
+            // Frames in flight when the car switched screens are never acked: it dropped them.
+            // Start the window afresh or the picture never comes back (VW Play / MIB).
+            synchronized(lock) { resetWindow(); sentAt.clear(); lastAckAt = System.nanoTime() }
+        }
+        if (projected) {
+            synchronized(lock) { needKeyFrame = true; while (pending.isNotEmpty()) pending.removeFirst().let { it.recycle(it.buf) } }
+            // Resend the codec config after the (re)start, the same as at connection.
+            codecConfig?.let { sendCodecConfigData(it, 0, it.size, Priority.VIDEO) }
         }
         if (changed || projected) listener.onVideoFocus(projected)
     }
@@ -605,6 +635,7 @@ class VideoChannel(
         closingReport = report()
         super.onClosed()
         focused = false
+        encoderStarted = false
         configured = false; waitTimer = false; generation++
         uiReplies.clear(); earlyUiRequest = null
         synchronized(lock) { while (pending.isNotEmpty()) pending.removeFirst().let { it.recycle(it.buf) }; sentAt.clear(); pendingFrames = 0 }
