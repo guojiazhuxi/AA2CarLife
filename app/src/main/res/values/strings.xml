@@ -15,6 +15,7 @@
     <string name="chk_pinch_translate">捏合翻译</string>
     <string name="chk_cptcl_pipeline">CPTCL管线</string>
     <string name="chk_rotate90">旋转90°</string>
+    <string name="chk_official_gesture">官方手势</string>
     <string name="chk_test_pattern">测试图（不连 CarLife）</string>
     <string name="hint_bt_mac">本机蓝牙地址（如 AA:BB:CC:DD:EE:FF）</string>
     <string name="btn_save_bt_mac">保存</string>
@@ -22,7 +23,7 @@
     <string name="chk_tap_single_click">单击补发</string>
     <string name="btn_selftest">自测捏合</string>
     <string name="hint_log_copy">日志可长按选择；复制后可直接发给我</string>
-    <string name="hint_video_landscape">画面区按 16:9 横向显示（不拉伸）</string>
+    <string name="hint_video_landscape">画面按 CarLife 实际比例显示（不拉伸）</string>
 
     <!-- 一键连接界面（极简主页） -->
     <string name="btn_connect_main">连接 CarLife</string>

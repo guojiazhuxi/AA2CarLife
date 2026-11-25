@@ -128,6 +128,30 @@ class MainActivity : Activity() {
 
     /** 官方"新触摸模式"：每个 MotionEvent 发一条 0x68001（action 直接透传，官方默认模式）。 */
     private var newTouchMode = false
+    private var newTouchLastX = 0
+    private var newTouchLastY = 0
+    private var newTouchLastAt = 0L
+
+    /** 官方旧模式手势状态机：单指点击只发 SINGLE_CLICK，拖动才发 DOWN/MOVE/150ms UP。 */
+    private var officialGestureMode = true
+    private var officialScrollStarted = false
+    private var officialWasScroll = false
+    private var officialDownX = 0
+    private var officialDownY = 0
+    private var officialLastX = 0
+    private var officialLastY = 0
+    private var officialLastMoveAt = 0L
+    private var officialLastTapAt = 0L
+    private var officialLastTapX = 0
+    private var officialLastTapY = 0
+    private val officialUpHandler = Handler(Looper.getMainLooper())
+    private val officialUpRunnable = Runnable {
+        if (officialScrollStarted) {
+            service?.touchSingle(CarLifeProtocol.TOUCH_UP, officialLastX, officialLastY)
+            officialScrollStarted = false
+            RingLog.add("TOUCH: 官方手势 150ms 无移动 → UP")
+        }
+    }
 
     private lateinit var surfaceView: RotateLayout
     private lateinit var textureView: TextureView
@@ -136,6 +160,7 @@ class MainActivity : Activity() {
     private lateinit var logText: TextView
     private lateinit var logScroll: ScrollView
     private lateinit var chkMoveIndex: CheckBox
+    private lateinit var chkOfficialGesture: CheckBox
     private lateinit var chkCptclPipeline: CheckBox
     private lateinit var chkNewTouch: CheckBox
     private lateinit var chkRotate90: CheckBox
@@ -237,6 +262,7 @@ class MainActivity : Activity() {
         logText = findViewById(R.id.log_text)
         logScroll = findViewById(R.id.log_scroll)
         chkMoveIndex = findViewById(R.id.chk_move_index)
+        chkOfficialGesture = findViewById(R.id.chk_official_gesture)
         chkCptclPipeline = findViewById(R.id.chk_cptcl_pipeline)
         chkNewTouch = findViewById(R.id.chk_new_touch)
         chkRotate90 = findViewById(R.id.chk_rotate90)
@@ -391,6 +417,11 @@ class MainActivity : Activity() {
         chkNewTouch.setOnCheckedChangeListener { _, checked ->
             newTouchMode = checked
             RingLog.add("TOUCH: 新触摸模式（0x68001 动作透传）${if (checked) "开启" else "关闭"}")
+        }
+        officialGestureMode = chkOfficialGesture.isChecked
+        chkOfficialGesture.setOnCheckedChangeListener { _, checked ->
+            officialGestureMode = checked
+            RingLog.add("TOUCH: 官方手势 ${if (checked) "开启" else "关闭"}（点击=SINGLE_CLICK，拖动=DOWN/MOVE/UP）")
         }
         cptclPipeline = chkCptclPipeline.isChecked
         // 预览旋转用 TextureView 变换：只改 View 比例/rotation，不重建解码器、不碰 KEY_ROTATION
@@ -916,6 +947,11 @@ class MainActivity : Activity() {
         service?.attachSurface(s)
     }
 
+    private fun scheduleOfficialUp() {
+        officialUpHandler.removeCallbacks(officialUpRunnable)
+        officialUpHandler.postDelayed(officialUpRunnable, 150L)
+    }
+
     private fun handleTouch(view: View, event: MotionEvent): Boolean {
         val svc = service ?: return false
         val targetWidth = svc.touchWidth.takeIf { it > 0 } ?: 1280
@@ -943,6 +979,98 @@ class MainActivity : Activity() {
             (targetHeight - 1 - dx).coerceIn(0, targetHeight - 1)
         }
 
+        // ---- 官方旧模式单指手势（对齐 GestureListenerImp） ----
+        // 点击只发 SINGLE_CLICK；拖动才补 DOWN + MOVE，150ms 无移动补 UP。
+        if (officialGestureMode) {
+            if (event.pointerCount > 1) {
+                RingLog.add("TOUCH: 官方手势模式暂不支持多指；双指请关闭「官方手势」走 CPTCL")
+                return true
+            }
+            val now = android.os.SystemClock.uptimeMillis()
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    officialUpHandler.removeCallbacks(officialUpRunnable)
+                    officialScrollStarted = false
+                    officialWasScroll = false
+                    officialDownX = x(0)
+                    officialDownY = y(0)
+                    officialLastX = officialDownX
+                    officialLastY = officialDownY
+                    officialLastMoveAt = now
+                    svc.touchSingle(CarLifeProtocol.TOUCH_ACTION_BEGIN, officialDownX, officialDownY)
+                    RingLog.add("TOUCH: 官方手势 BEGIN (${officialDownX},${officialDownY})")
+                    return true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val mx = x(0)
+                    val my = y(0)
+                    val total = kotlin.math.abs(mx - officialDownX) + kotlin.math.abs(my - officialDownY)
+                    if (!officialWasScroll && total >= MOVE_MIN_DRIFT) {
+                        // 官方 onScroll 第一次滚动补 DOWN（用按下点）
+                        svc.touchSingle(CarLifeProtocol.TOUCH_DOWN, officialDownX, officialDownY)
+                        officialScrollStarted = true
+                        officialWasScroll = true
+                        svc.touchSingle(CarLifeProtocol.TOUCH_MOVE, mx, my)
+                        officialLastX = mx
+                        officialLastY = my
+                        officialLastMoveAt = now
+                        scheduleOfficialUp()
+                        RingLog.add("TOUCH: 官方手势 拖动开始 DOWN(${officialDownX},${officialDownY}) MOVE($mx,$my)")
+                    } else if (officialWasScroll) {
+                        if (!officialScrollStarted) {
+                            // 150ms 定时器已经发过 UP，手指还在：官方行为是重新补 DOWN
+                            svc.touchSingle(CarLifeProtocol.TOUCH_DOWN, officialDownX, officialDownY)
+                            officialScrollStarted = true
+                        }
+                        val d = kotlin.math.abs(mx - officialLastX) + kotlin.math.abs(my - officialLastY)
+                        if (d >= 4 || now - officialLastMoveAt >= 16) {
+                            svc.touchSingle(CarLifeProtocol.TOUCH_MOVE, mx, my)
+                            officialLastX = mx
+                            officialLastY = my
+                            officialLastMoveAt = now
+                            scheduleOfficialUp()
+                        }
+                    }
+                    return true
+                }
+                MotionEvent.ACTION_UP -> {
+                    officialUpHandler.removeCallbacks(officialUpRunnable)
+                    if (officialScrollStarted) {
+                        svc.touchSingle(CarLifeProtocol.TOUCH_UP, officialLastX, officialLastY)
+                        officialScrollStarted = false
+                        RingLog.add("TOUCH: 官方手势 拖动结束 UP(${officialLastX},${officialLastY})")
+                    } else if (!officialWasScroll) {
+                        val isDouble = now - officialLastTapAt <= DOUBLE_TAP_MS &&
+                            kotlin.math.abs(officialDownX - officialLastTapX) <= TAP_MAX_DRIFT &&
+                            kotlin.math.abs(officialDownY - officialLastTapY) <= TAP_MAX_DRIFT
+                        if (isDouble) {
+                            svc.touchSingle(CarLifeProtocol.TOUCH_DOUBLE_CLICK, officialDownX, officialDownY)
+                            officialLastTapAt = 0
+                            RingLog.add("TOUCH: 官方手势 DOUBLE_CLICK (${officialDownX},${officialDownY})")
+                        } else {
+                            svc.touchSingle(CarLifeProtocol.TOUCH_SINGLE_CLICK, officialDownX, officialDownY)
+                            officialLastTapAt = now
+                            officialLastTapX = officialDownX
+                            officialLastTapY = officialDownY
+                            RingLog.add("TOUCH: 官方手势 SINGLE_CLICK (${officialDownX},${officialDownY})")
+                        }
+                    }
+                    officialWasScroll = false
+                    return true
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    officialUpHandler.removeCallbacks(officialUpRunnable)
+                    if (officialScrollStarted) {
+                        svc.touchSingle(CarLifeProtocol.TOUCH_UP, officialLastX, officialLastY)
+                        officialScrollStarted = false
+                    }
+                    officialWasScroll = false
+                    return true
+                }
+            }
+            return true
+        }
+
         val act = CarLifeProtocol.TouchAction
 
         // 多指事件的详细日志（每次手势前 30 条），用于定位"哪些触摸真的发到了引擎/发的是什么"
@@ -968,7 +1096,27 @@ class MainActivity : Activity() {
         if (newTouchMode && !cptclPipeline && !pinchTranslate) {
             if (event.pointerCount >= 1) {
                 val action = event.action // getAction()：POINTER_DOWN/UP 自带指针索引位
-                svc.touchComposite(action, x(0), y(0))
+                if (event.actionMasked == MotionEvent.ACTION_MOVE) {
+                    // 新触摸是逐 MotionEvent 发送；必须节流，否则单线程触摸队列会积压，
+                    // 表现为手指还在滑但画面不动、抬手后才追上。
+                    val now = android.os.SystemClock.uptimeMillis()
+                    val mxx = x(0)
+                    val myy = y(0)
+                    val d = kotlin.math.abs(mxx - newTouchLastX) + kotlin.math.abs(myy - newTouchLastY)
+                    if (now - newTouchLastAt >= 16L || d >= 4) {
+                        svc.touchComposite(action, mxx, myy)
+                        newTouchLastX = mxx
+                        newTouchLastY = myy
+                        newTouchLastAt = now
+                    }
+                } else {
+                    svc.touchComposite(action, x(0), y(0))
+                    if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                        newTouchLastX = x(0)
+                        newTouchLastY = y(0)
+                        newTouchLastAt = android.os.SystemClock.uptimeMillis()
+                    }
+                }
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         touchLogBudget = 3

@@ -175,6 +175,14 @@
             android:orientation="horizontal">
 
             <CheckBox
+                android:id="@+id/chk_official_gesture"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="@string/chk_official_gesture"
+                android:textSize="12sp" />
+
+            <CheckBox
                 android:id="@+id/chk_cptcl_pipeline"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
