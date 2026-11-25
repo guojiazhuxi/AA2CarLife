@@ -2,16 +2,19 @@ plugins {
     alias(libs.plugins.android.application)
 }
 
+val compileSdkOverride = providers.gradleProperty("compileSdkVersion").orNull?.toIntOrNull() ?: 37
+val targetSdkOverride = providers.gradleProperty("targetSdkVersion").orNull?.toIntOrNull() ?: 37
+
 android {
     namespace = "com.hobby.aa2carlife"
     compileSdk {
-        version = release(37)
+        version = release(compileSdkOverride)
     }
 
     defaultConfig {
         applicationId = "com.hobby.aa2carlife"
         minSdk = 31
-        targetSdk = 37
+        targetSdk = targetSdkOverride
         versionCode = 1
         versionName = "1.0"
 

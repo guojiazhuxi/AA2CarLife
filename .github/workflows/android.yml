@@ -21,9 +21,9 @@ jobs:
         run: |
           SDKMANAGER="${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" --channel=3 'platforms;android-37'
+          "$SDKMANAGER" 'platforms;android-36'
 
       - name: Build, test and lint
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --no-daemon
+          ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug -PcompileSdkVersion=36 -PtargetSdkVersion=36 --no-daemon
