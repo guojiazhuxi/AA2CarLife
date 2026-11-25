@@ -4,6 +4,7 @@ import android.app.Notification
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.IntentFilter
+import android.hardware.usb.UsbAccessory
 import android.hardware.usb.UsbManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -17,6 +18,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.view.Surface
 import com.hobby.aa2carlife.aa.AaAnnexB
+import com.hobby.aa2carlife.aa.AaHeadUnitServer
 import com.hobby.aa2carlife.aa.SpsInfo
 import com.hobby.aa2carlife.carlife.CarLifeAudio
 import com.hobby.aa2carlife.carlife.CarLifeHuClient
@@ -373,10 +375,30 @@ class CarLifeService : Service() {
                             }
                         RingLog.add("USB: 系统 USB_STATE 变化 $flags")
                     }
-                    UsbManager.ACTION_USB_ACCESSORY_DETACHED ->
+                    UsbManager.ACTION_USB_ACCESSORY_DETACHED -> {
                         RingLog.add("USB: 系统广播 accessory 已断开（真·USB 断开）")
-                    UsbManager.ACTION_USB_ACCESSORY_ATTACHED ->
-                        RingLog.add("USB: 系统广播 accessory 接入")
+                        // Service 常驻时也要停会话，避免 Activity 不在前台留下死会话。
+                        AaHeadUnitServer.current?.stopSessions()
+                    }
+                    UsbManager.ACTION_USB_ACCESSORY_ATTACHED -> {
+                        @Suppress("DEPRECATION")
+                        val accessory = intent.getParcelableExtra(UsbManager.EXTRA_ACCESSORY) as? UsbAccessory
+                        RingLog.add(
+                            "USB: 系统广播 accessory 接入 manufacturer=" + accessory?.manufacturer +
+                                " model=" + accessory?.model,
+                        )
+                        val server = AaHeadUnitServer.current
+                        if (server != null && accessory != null) {
+                            // 关键：CarLife 在前台时我们的 Activity 可能在后台，收不到 attach intent。
+                            // Service 的广播接收器是常驻的，这里直接启动 AA 会话。
+                            RingLog.add("USB: Service 直接启动 AA 会话（Activity 可能不在前台）")
+                            runCatching {
+                                server.startAccessorySession(getSystemService(UsbManager::class.java), accessory)
+                            }.onFailure { RingLog.add("USB: Service 启动 AA 会话失败 - ${it.message}") }
+                        } else {
+                            RingLog.add("USB: Service 收到 accessory 接入，等待 Activity 处理（server=" + server + "）")
+                        }
+                    }
                     UsbManager.ACTION_USB_DEVICE_DETACHED ->
                         RingLog.add("USB: 系统广播 USB 设备拔出")
                 }

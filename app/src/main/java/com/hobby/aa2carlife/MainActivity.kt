@@ -431,6 +431,32 @@ class MainActivity : Activity() {
         } else {
             startService(Intent(this, CarLifeService::class.java))
         }
+        syncUsbAccessory()
+    }
+
+    /**
+     * Activity 恢复时检查系统当前是否已有 accessory。
+     *
+     * 车机 attach 的 intent 只保证送到 Activity；如果插线时前台是荣耀车联、我们的 Activity 在后台，
+     * 这次 attach 可能被漏掉。这里以 UsbManager 的实际状态为准补一次启动，避免“手机等车机、
+     * 车机却停在上一次的占位帧”。
+     */
+    private fun syncUsbAccessory() {
+        val usb = getSystemService(UsbManager::class.java) ?: return
+        val accessory = usb.accessoryList?.firstOrNull()
+        if (accessory == null) {
+            if (aaServer?.isAccessoryAttached() != true) aaAttached = false
+            return
+        }
+        aaAttached = true
+        if (aaServer?.isUsbSessionRunning() != true) {
+            RingLog.add("USB: Activity 恢复时发现已接入的 accessory，补启动 AA 会话")
+            aaServer?.startAccessorySession(usb, accessory)
+            pendingUsbAutoStart = true
+            autoStartLogged = false
+            runOnUiThread { tryAutoStartForUsb() }
+        }
+        recomputeStatus()
     }
 
     override fun onStop() {
@@ -469,6 +495,7 @@ class MainActivity : Activity() {
                         "model=${accessory?.model} version=${accessory?.version}",
                 )
                 if (accessory != null) {
+                    aaAttached = true
                     // 车机接入：把服务拉成"已启动的前台服务"，进设置/切后台时进程不被清理，AA 会话不断
                     runCatching {
                         startForegroundService(
@@ -765,12 +792,13 @@ class MainActivity : Activity() {
 
     /** 按优先级组合状态：投屏中 > 车机握手 > CarLife 等待车机 > 车机已接入等待会话 > 失败/空闲 */
     private fun recomputeStatus() {
+        val attached = aaAttached || aaServer?.isAccessoryAttached() == true
         val status = when {
             aaProjecting && carlifeAlive -> getString(R.string.status_projection)
             carlifePaused -> getString(R.string.status_carlife_paused)
-            engineWaiting && aaAttached -> getString(R.string.status_engine_waiting)
+            engineWaiting && attached -> getString(R.string.status_engine_waiting)
             aaSessionReady -> getString(R.string.status_car_handshake)
-            aaAttached -> getString(R.string.status_car_attached)
+            attached -> getString(R.string.status_car_attached)
             carlifeFailed -> getString(R.string.status_failed)
             carlifeAlive -> getString(R.string.status_waiting_car)
             else -> getString(R.string.status_idle)

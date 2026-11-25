@@ -78,6 +78,17 @@ class AaHeadUnitServer(
         onTouch = touch
     }
 
+    companion object {
+        /** 当前进程里的 AA 服务器：CarLifeService 在 Activity 不在前台时也能启动会话。 */
+        @Volatile
+        var current: AaHeadUnitServer? = null
+            private set
+    }
+
+    init {
+        current = this
+    }
+
     /** 车机选定的视频配置尺寸回调（宽, 高），用于让 CarLife 按车机分辨率编码。 */
     var onVideoConfigSelected: ((width: Int, height: Int) -> Unit)? = null
 
@@ -235,6 +246,14 @@ class AaHeadUnitServer(
     /** USB accessory 会话是否在运行（车机重连会重复派发 attach，用于去重）。 */
     @Volatile
     private var usbSessionRunning = false
+
+    /** 车机 accessory 是否已接入（Activity 不在前台时由 Service 更新）。 */
+    @Volatile
+    private var accessoryAttached = false
+
+    /** 当前 accessory 的 serial：区分“同一句柄重复上报”和“车机重新接入”。 */
+    @Volatile
+    private var currentAccessorySerial: String? = null
 
     /** 当前是否是真实车机（USB）会话：真车不放测试图，避免车机解码器被无效码流卡死。 */
     @Volatile
@@ -838,10 +857,17 @@ class AaHeadUnitServer(
 
     /** M4：车机通过 USB AOA 接上手机后，用 accessory 通道启动 AAP 会话。 */
     fun startAccessorySession(manager: UsbManager, accessory: UsbAccessory) {
+        val serial = accessory.serial
+        // Activity 的 intent 和 Service 的广播可能同时到达：同一个 accessory 句柄只启动一次。
+        if (usbSessionRunning && serial != null && serial == currentAccessorySerial) {
+            onLog("USB: 同一 accessory 重复接入，忽略（会话已在跑）")
+            accessoryAttached = true
+            return
+        }
         // 车机在 AOA 切换后经常会重复派发 attach（先旧句柄、再新句柄），
-        // 此时必须先关掉旧会话，否则两个会话抢同一个 accessory 会导致 EIO/ENODEV。
+        // 句柄不同则必须先关掉旧会话，否则两个会话抢同一个 accessory 会导致 EIO/ENODEV。
         if (usbSessionRunning) {
-            onLog("USB: 收到重复 accessory 接入，先关闭旧会话再重连")
+            onLog("USB: 收到新的 accessory 句柄，先关闭旧会话再重连")
             stopSessions()
         }
         val identity = try {
@@ -854,6 +880,8 @@ class AaHeadUnitServer(
             val transport = UsbAccessoryTransport(manager, accessory)
             usbSessionRunning = true
             usbMode = true
+            accessoryAttached = true
+            currentAccessorySerial = serial
             onLog("AA: USB accessory 已连接：${transport.name}（开始 AAP 会话）")
             thread(name = "aa-hu-usb", isDaemon = true) {
                 startSession(transport, identity)
@@ -871,12 +899,18 @@ class AaHeadUnitServer(
         testRunning.set(false)
         stopAudioPump()
         usbSessionRunning = false
+        accessoryAttached = false
+        currentAccessorySerial = null
         sessions.forEach { runCatching { it.stop() } }
         sessions.clear()
         video = null
         mediaAudio = null
         onLog("AA: 所有 AAP 会话已停止")
     }
+
+    fun isUsbSessionRunning(): Boolean = usbSessionRunning
+
+    fun isAccessoryAttached(): Boolean = accessoryAttached
 
     private fun videoListener(): VideoChannel.Listener = object : VideoChannel.Listener {
         override fun chooseConfiguration(configs: List<VideoConfiguration>, preferred: List<Int>): Int {
