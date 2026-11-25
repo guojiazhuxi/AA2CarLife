@@ -126,6 +126,7 @@ AARE 官方说明：https://github.com/prototux/AARE#aa-key-extraction
 
 - 视频流：已打通。
 - 音频：进度约 60%。
+- 仅在作者自己的设备上测试过（荣耀手机 + 奥迪 MIB3 车机）。
 
 ## 目录结构
 

@@ -273,6 +273,7 @@ adb shell run-as com.hobby.aa2carlife cat files/aa2cl.log
 
 - 视频流：已打通。
 - 音频：进度约 60%。
+- 仅在作者自己的设备上测试过（荣耀手机 + 奥迪 MIB3 车机）。
 
 ## 14. 许可与来源
 
