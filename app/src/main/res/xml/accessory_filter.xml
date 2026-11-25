@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  M4：车机（Audi MIB3）在 AA 有线连接时会作为 USB host 发起 AOA 握手，把手机切成
+  accessory 模式，并向手机系统提供 accessory 描述串（manufacturer / model / version）。
+  系统按下面的规则决定把 USB_ACCESSORY_ATTACHED 事件交给哪个 App。
+
+  Android 的匹配规则是"字段省略即通配"（AccessoryFilter.matches），所以这里用多条
+  覆盖常见写法：出厂 AA 车机一般是 manufacturer=Google、model=Android Auto；
+  部分 OEM（Audi/VW）会填自己的厂商名。实车抓到的真实描述串会打印在 App 日志
+  USB: accessory 接入 manufacturer=... model=... version=... 里，之后可按实测值收敛。
+-->
+<resources>
+    <!-- 只要是 Android Auto 配件就匹配 -->
+    <usb-accessory model="Android Auto" />
+    <!-- 常见 Google 写法 -->
+    <usb-accessory manufacturer="Google" />
+    <!-- 部分 OEM 挂自己品牌名 -->
+    <usb-accessory manufacturer="Android" />
+    <usb-accessory manufacturer="Audi" />
+    <usb-accessory manufacturer="Audi AG" />
+</resources>

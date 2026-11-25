@@ -1,0 +1,231 @@
+package com.hobby.aa2carlife.carlife
+
+import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
+import android.media.AudioFormat
+import android.media.AudioManager
+import android.media.AudioTrack
+import com.hobby.aa2carlife.diag.RingLog
+
+/**
+ * CarLife 音频输出（M1）：媒体（9240）与 TTS/导航播报（9241）各一条 AudioTrack。
+ *
+ * 协议事实（来自 CarPToCarL 实测）：
+ *  - 音频通道是裸字节流：每包 `[u32 len][u32 timestamp][u32 type]` + PCM；
+ *  - 媒体：`0x30001` INIT（载荷 CarlifeMusicInit: field1 采样率 / field2 声道配置 /
+ *    field3 位深）、`0x30006` NORMAL（PCM）、`0x30003/0x30002` PAUSE/STOP；
+ *  - TTS：`0x40001` INIT、`0x40003` NORMAL（PCM）、`0x40002` STOP；
+ *  - channelConfig==1 为单声道，其余按立体声处理。
+ *
+ * 音频路由说明：本 App 用 `USAGE_MEDIA` 播放，Android 会按系统策略输出到当前媒体设备
+ * （蓝牙音箱已连接时就走蓝牙，不会走手机扬声器）。
+ */
+class CarLifeAudio(
+    private val audioManager: AudioManager? = null,
+) {
+
+    private var mediaTrack: AudioTrack? = null
+    private var mediaRate = DEFAULT_RATE
+    private var mediaChannels = 2
+
+    private var ttsTrack: AudioTrack? = null
+    private var ttsRate = TTS_RATE
+    private var ttsChannels = 1
+
+    // 媒体音频统计（每 ~2 秒打一行，用于确认 PCM 是否在持续流动）
+    private var mediaPackets = 0L
+    private var mediaBytes = 0L
+    private var mediaShortWrites = 0L
+    private var lastMediaStatMs = 0L
+
+    @Volatile
+    private var mediaPcmLogged = false
+
+    @Volatile
+    private var ttsPcmLogged = false
+
+    @Synchronized
+    fun onMediaFormat(sampleRate: Int, channels: Int) {
+        val rate = if (sampleRate > 0) sampleRate else DEFAULT_RATE
+        val ch = if (channels in 1..2) channels else 2
+        if (mediaTrack != null && rate == mediaRate && ch == mediaChannels) return
+        releaseMediaTrack()
+        mediaRate = rate
+        mediaChannels = ch
+        mediaTrack = createTrack(
+            rate,
+            ch,
+            usage = AudioAttributes.USAGE_MEDIA,
+            contentType = AudioAttributes.CONTENT_TYPE_MUSIC,
+        )
+        mediaPackets = 0
+        mediaBytes = 0
+        mediaShortWrites = 0
+        lastMediaStatMs = 0
+        RingLog.add("AUDIO: 媒体音频格式 ${rate}Hz ${ch}ch（已创建 AudioTrack）")
+    }
+
+    @Synchronized
+    fun onMediaPcm(data: ByteArray, length: Int) {
+        if (length <= 0) return
+        val track = mediaTrack ?: run {
+            onMediaFormat(DEFAULT_RATE, 2)
+            return
+        }
+        if (!mediaPcmLogged) {
+            mediaPcmLogged = true
+            RingLog.add("AUDIO: ✓ 收到媒体音频首包（${length}B）")
+        }
+        mediaPackets++
+        mediaBytes += length
+        write(track, data, length)
+        val now = android.os.SystemClock.uptimeMillis()
+        if (lastMediaStatMs == 0L) lastMediaStatMs = now
+        if (now - lastMediaStatMs >= 2000L) {
+            val pos = runCatching { track.playbackHeadPosition }.getOrDefault(-1)
+            RingLog.add(
+                "AUDIO: 媒体 PCM 累计 $mediaPackets 包 / ${mediaBytes / 1024} KB，" +
+                    "短写 $mediaShortWrites 次，播放头 $pos，状态 ${track.playState}",
+            )
+            lastMediaStatMs = now
+        }
+    }
+
+    @Synchronized
+    fun onMediaPause() {
+        runCatching { mediaTrack?.pause() }
+    }
+
+    @Synchronized
+    fun onTtsFormat(sampleRate: Int, channels: Int) {
+        val rate = if (sampleRate > 0) sampleRate else TTS_RATE
+        val ch = if (channels in 1..2) channels else 1
+        if (ttsTrack != null && rate == ttsRate && ch == ttsChannels) return
+        releaseTtsTrack()
+        ttsRate = rate
+        ttsChannels = ch
+        ttsTrack = createTrack(
+            rate,
+            ch,
+            usage = AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE,
+            contentType = AudioAttributes.CONTENT_TYPE_SPEECH,
+        )
+        RingLog.add("AUDIO: TTS 音频格式 ${rate}Hz ${ch}ch（已创建 AudioTrack）")
+    }
+
+    @Synchronized
+    fun onTtsPcm(data: ByteArray, length: Int) {
+        if (length <= 0) return
+        val track = ttsTrack ?: run {
+            onTtsFormat(TTS_RATE, 1)
+            return
+        }
+        if (!ttsPcmLogged) {
+            ttsPcmLogged = true
+            RingLog.add("AUDIO: ✓ 收到导航播报音频首包（${length}B，${ttsRate}Hz ${ttsChannels}ch）")
+        }
+        write(track, data, length)
+    }
+
+    @Synchronized
+    fun release() {
+        releaseMediaTrack()
+        releaseTtsTrack()
+    }
+
+    private fun write(track: AudioTrack, data: ByteArray, length: Int) {
+        try {
+            val written = track.write(data, 0, length)
+            if (written < 0) {
+                RingLog.add("AUDIO: AudioTrack.write 返回 $written")
+            } else if (written < length) {
+                mediaShortWrites++
+            }
+        } catch (e: Exception) {
+            RingLog.add("AUDIO: 写 AudioTrack 失败 - ${e.message}")
+        }
+    }
+
+    private fun createTrack(
+        rate: Int,
+        channels: Int,
+        usage: Int,
+        contentType: Int,
+    ): AudioTrack? {
+        return try {
+            val channelMask =
+                if (channels == 1) AudioFormat.CHANNEL_OUT_MONO else AudioFormat.CHANNEL_OUT_STEREO
+            val minBuffer = AudioTrack.getMinBufferSize(rate, channelMask, AudioFormat.ENCODING_PCM_16BIT)
+            val bufferSize = (minBuffer.coerceAtLeast(rate / 2 * channels * 2) * 2)
+            val attributes = AudioAttributes.Builder()
+                .setUsage(usage)
+                .setContentType(contentType)
+                .build()
+            val format = AudioFormat.Builder()
+                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                .setSampleRate(rate)
+                .setChannelMask(channelMask)
+                .build()
+            AudioTrack.Builder()
+                .setAudioAttributes(attributes)
+                .setAudioFormat(format)
+                .setBufferSizeInBytes(bufferSize)
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .build()
+                .also {
+                    val state = it.state
+                    RingLog.add("AUDIO: AudioTrack 状态=$state 采样率=$rate 声道=$channels 缓冲=$bufferSize")
+                    preferBuiltinSpeaker(it)
+                    it.play()
+                }
+        } catch (e: Exception) {
+            RingLog.add("AUDIO: 创建 AudioTrack 失败 - ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * 把 AudioTrack 强制路由到内置扬声器。
+     *
+     * 荣耀系统在某些模式下会把 App 媒体音频路由到 AUDIO_DEVICE_OUT_PROXY 之类的虚拟设备，
+     * 导致手机/车机都听不到。这里显式指定内置扬声器后，M1 预览一定能听到声音。
+     */
+    private fun preferBuiltinSpeaker(track: AudioTrack) {
+        val am = audioManager ?: return
+        val speaker = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+            .firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+        if (speaker == null) {
+            RingLog.add("AUDIO: 未找到内置扬声器，保持系统默认路由")
+            return
+        }
+        val ok = runCatching { track.setPreferredDevice(speaker) }.getOrDefault(false)
+        RingLog.add("AUDIO: 指定输出设备 ${speaker.productName}(type=${speaker.type}) 结果=$ok")
+    }
+
+    /** 当前所有输出设备的类型列表（会话启动时记录一次，便于排查路由）。 */
+    fun logOutputDevices() {
+        val am = audioManager ?: return
+        val devices = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+            .joinToString(", ") { "${it.productName}(type=${it.type})" }
+        RingLog.add("AUDIO: 输出设备列表=[$devices]")
+    }
+
+    private fun releaseMediaTrack() {
+        runCatching { mediaTrack?.stop() }
+        runCatching { mediaTrack?.release() }
+        mediaTrack = null
+        mediaPcmLogged = false
+    }
+
+    private fun releaseTtsTrack() {
+        runCatching { ttsTrack?.stop() }
+        runCatching { ttsTrack?.release() }
+        ttsTrack = null
+        ttsPcmLogged = false
+    }
+
+    companion object {
+        private const val DEFAULT_RATE = 48_000
+        private const val TTS_RATE = 16_000
+    }
+}

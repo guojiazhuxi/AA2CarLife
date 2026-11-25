@@ -1,0 +1,41 @@
+# ---- Android / Gradle ----
+*.iml
+.gradle/
+build/
+**/build/
+local.properties
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+*.hprof
+
+# ---- Secrets: never commit ----
+app/src/main/assets/aap/*.pem
+app/src/main/assets/aap/*.key
+*.pem
+*.key
+*.jks
+*.keystore
+*.p12
+*.pfx
+keystore.properties
+
+# ---- Logs / dumps ----
+*.log
+*.raw
+
+# ---- OS / editors ----
+.DS_Store
+Thumbs.db
+.vscode/
+*.swp
+
+# ---- Python ----
+__pycache__/
+*.pyc
